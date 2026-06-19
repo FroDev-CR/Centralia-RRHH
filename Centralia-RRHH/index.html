@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Centralia · Personas — RRHH y Nómina que se calculan solos</title>
+<meta name="description" content="Vacaciones, solicitudes, planilla CCSS y aguinaldo calculados automáticamente con las horas reales de tu Marcaje. RRHH y Nómina para Costa Rica, sin Excel." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: "rgb(var(--bg) / <alpha-value>)",
+          foreground: "rgb(var(--fg) / <alpha-value>)",
+          card: "rgb(var(--card) / <alpha-value>)",
+          border: "rgb(var(--border) / <alpha-value>)",
+          muted: { DEFAULT: "rgb(var(--muted) / <alpha-value>)", foreground: "rgb(var(--muted-fg) / <alpha-value>)" },
+          primary: { DEFAULT: "rgb(var(--primary) / <alpha-value>)", foreground: "rgb(var(--primary-fg) / <alpha-value>)" },
+          accent: "rgb(var(--accent) / <alpha-value>)",
+          brand3: "rgb(var(--brand3) / <alpha-value>)",
+          success: "rgb(var(--success) / <alpha-value>)",
+          warning: "rgb(var(--warning) / <alpha-value>)",
+          destructive: "rgb(var(--destructive) / <alpha-value>)",
+        },
+        fontFamily: {
+          sans: ['Poppins', 'system-ui', 'sans-serif'],
+          display: ['Poppins', 'system-ui', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+        animation: {
+          gradient: "gradient 6s ease infinite",
+          floaty: "floaty 6s ease-in-out infinite",
+          marquee: "marquee 32s linear infinite",
+          blob: "blob 16s ease-in-out infinite",
+          pulse2: "pulse2 2s ease-in-out infinite",
+        },
+        keyframes: {
+          gradient: { "0%,100%": { backgroundPosition: "0% 50%" }, "50%": { backgroundPosition: "100% 50%" } },
+          floaty: { "0%,100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-10px)" } },
+          marquee: { from: { transform: "translateX(0)" }, to: { transform: "translateX(-50%)" } },
+          blob: { "0%,100%": { transform: "translate(0,0) scale(1)" }, "50%": { transform: "translate(20px,-20px) scale(1.1)" } },
+          pulse2: { "0%,100%": { opacity: 1 }, "50%": { opacity: .4 } },
+        },
+      },
+    },
+  };
+</script>
+<style>
+  /* ====================================================================
+     Centralia · Personas — mismo design system que ChatBot/POS,
+     acento propio: teal -> esmeralda -> indigo (RRHH & Nómina).
+     ==================================================================== */
+  :root, :root[data-theme="dark"]{
+    --bg:6 8 11; --fg:242 246 248; --card:16 22 26; --border:33 44 48;
+    --muted:22 30 33; --muted-fg:151 168 172;
+    --primary:13 148 136; --primary-fg:255 255 255; --accent:79 70 229; --brand3:16 185 129;
+    --success:52 211 153; --warning:251 191 36; --destructive:248 113 113;
+  }
+  :root[data-theme="light"]{
+    --bg:243 248 247; --fg:14 38 36; --card:255 255 255; --border:214 230 226;
+    --muted:235 244 242; --muted-fg:80 102 100;
+    --primary:13 148 136; --primary-fg:255 255 255; --accent:67 56 202; --brand3:5 150 105;
+    --success:16 185 129; --warning:217 119 6; --destructive:220 38 38;
+  }
+  html{scroll-behavior:smooth}
+  body{background:rgb(var(--bg));color:rgb(var(--fg))}
+  .brand-grad{background-image:linear-gradient(120deg,#0d9488 0%,#10b981 46%,#4f46e5 100%);background-size:200% 200%}
+  .text-grad{background-image:linear-gradient(120deg,#14b8a6,#10b981,#6366f1);background-size:200% 200%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  /* Marca: cuadro con gradiente + icono (auto-contenido, sin imágenes) */
+  .logo-sq{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;box-shadow:0 8px 22px -8px rgba(16,185,129,.6)}
+  .logo-sq svg{width:19px;height:19px;color:#fff}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  .fu{opacity:0;animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards}
+  .fu-1{animation-delay:.08s}.fu-2{animation-delay:.16s}.fu-3{animation-delay:.24s}.fu-4{animation-delay:.34s}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .ether{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .ether .blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.5}
+  [data-theme="light"] .ether .blob{opacity:.28}
+</style>
+</head>
+<body class="font-sans antialiased overflow-x-hidden">
+
+<!-- ╔═ FONDO ETÉREO ═╗ -->
+<div class="ether" aria-hidden="true">
+  <div class="blob animate-blob" style="width:46vw;height:46vw;top:-14vw;left:-12vw;background:radial-gradient(circle,#0d9488,transparent 65%)"></div>
+  <div class="blob animate-blob" style="width:44vw;height:44vw;bottom:-16vw;right:-12vw;background:radial-gradient(circle,#4f46e5,transparent 65%);animation-delay:-6s"></div>
+  <div class="blob animate-blob" style="width:30vw;height:30vw;top:30vw;left:42vw;opacity:.30;background:radial-gradient(circle,#10b981,transparent 65%);animation-delay:-3s"></div>
+</div>
+
+<div class="relative z-10">
+
+<!-- ╔═ NAVBAR ═╗ -->
+<header id="nav" class="fixed inset-x-0 top-0 z-50 transition-all duration-300">
+  <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <a href="#" class="flex items-center gap-2.5">
+      <span class="logo-sq brand-grad animate-gradient"><i data-lucide="users-round"></i></span>
+      <span class="font-display text-lg font-extrabold tracking-tight">Centralia <span class="text-muted-foreground font-semibold">Personas</span></span>
+    </a>
+    <nav class="hidden md:flex items-center gap-1">
+      <a href="#funciones" class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Funciones</a>
+      <a href="#nomina" class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Nómina</a>
+      <a href="#precios" class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Precios</a>
+      <a href="#preguntas" class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Preguntas</a>
+      <div class="relative group">
+        <button class="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Productos <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i></button>
+        <div class="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition absolute right-0 top-full w-80 pt-2">
+          <div class="rounded-2xl border border-border bg-card p-2 shadow-xl space-y-1">
+            <div class="flex items-center gap-3 rounded-xl p-3 hover:bg-muted transition-colors">
+              <span class="h-9 w-9 rounded-lg flex items-center justify-center text-white" style="background:linear-gradient(120deg,#3b82f6,#ef4444)"><i data-lucide="message-circle" class="h-4 w-4"></i></span>
+              <div><div class="font-display font-bold text-sm">Centralia ChatBot</div><div class="text-xs text-muted-foreground">Atención y ventas con IA</div></div>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl p-3 hover:bg-muted transition-colors">
+              <span class="h-9 w-9 rounded-lg flex items-center justify-center text-white" style="background:linear-gradient(120deg,#10b981,#059669)"><i data-lucide="shopping-cart" class="h-4 w-4"></i></span>
+              <div><div class="font-display font-bold text-sm">Centralia POS</div><div class="text-xs text-muted-foreground">Punto de venta y facturación</div></div>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl p-3 hover:bg-muted transition-colors">
+              <span class="h-9 w-9 rounded-lg flex items-center justify-center text-white" style="background:linear-gradient(120deg,#f59e0b,#b45309)"><i data-lucide="fingerprint" class="h-4 w-4"></i></span>
+              <div><div class="font-display font-bold text-sm">Centralia Marcaje</div><div class="text-xs text-muted-foreground">Control de horario y asistencia</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="hidden md:flex items-center gap-2">
+      <button onclick="toggleTheme()" aria-label="Cambiar tema" class="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"><i data-lucide="moon" id="themeIco" class="h-5 w-5"></i></button>
+      <a href="/app" class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Iniciar sesión</a>
+      <a href="#contacto" class="inline-flex items-center gap-1.5 rounded-lg brand-grad animate-gradient px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/25 hover:opacity-95 transition">Solicitar demo <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i></a>
+    </div>
+    <div class="flex items-center gap-1 md:hidden">
+      <button onclick="toggleTheme()" aria-label="Cambiar tema" class="rounded-md p-2 hover:bg-muted"><i data-lucide="moon" class="h-5 w-5"></i></button>
+      <button onclick="document.getElementById('drawer').classList.toggle('hidden')" aria-label="Menú" class="rounded-md p-2 hover:bg-muted"><i data-lucide="menu" class="h-5 w-5"></i></button>
+    </div>
+  </div>
+  <div id="drawer" class="hidden md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
+    <div class="mx-auto max-w-7xl px-4 py-3 space-y-1">
+      <a href="#funciones" class="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Funciones</a>
+      <a href="#nomina" class="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Nómina</a>
+      <a href="#precios" class="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Precios</a>
+      <a href="#preguntas" class="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Preguntas</a>
+      <div class="border-t border-border pt-2 mt-2 space-y-2">
+        <a href="/app" class="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Iniciar sesión</a>
+        <a href="#contacto" class="block rounded-lg brand-grad px-3 py-2.5 text-center text-sm font-semibold text-white">Solicitar demo</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ╔═ HERO ═╗ -->
+<section class="relative pt-32 pb-20 sm:pt-40 sm:pb-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-center">
+      <div class="text-center lg:text-left">
+        <div class="fu fu-1 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary mb-6">
+          <span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse2"></span> Se conecta con tu Centralia Marcaje
+        </div>
+        <h1 class="fu font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight leading-[1.05]">
+          RRHH y nómina que <span class="text-grad animate-gradient">se calculan solos</span>.
+        </h1>
+        <p class="fu fu-2 mt-6 text-base sm:text-lg lg:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0">
+          Vacaciones, solicitudes, planilla de la <span class="text-foreground">CCSS</span> y aguinaldo, calculados con las <span class="text-foreground">horas reales</span> de tu marcaje. Adiós al Excel y a los errores de planilla.
+        </p>
+        <div class="fu fu-3 mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+          <a href="#contacto" class="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl brand-grad animate-gradient text-base font-semibold text-white shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform">Solicitar demo <i data-lucide="arrow-right" class="h-4 w-4"></i></a>
+          <a href="#precios" class="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl border border-border bg-card text-base font-semibold hover:border-muted-foreground/40 transition-colors">Ver planes</a>
+        </div>
+        <div class="fu fu-4 mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-xs text-muted-foreground">
+          <span class="inline-flex items-center gap-1.5"><i data-lucide="check-circle-2" class="h-3.5 w-3.5 text-success"></i> Hecho para Costa Rica</span>
+          <span class="inline-flex items-center gap-1.5"><i data-lucide="check-circle-2" class="h-3.5 w-3.5 text-success"></i> Cumple con la CCSS</span>
+          <span class="inline-flex items-center gap-1.5"><i data-lucide="check-circle-2" class="h-3.5 w-3.5 text-success"></i> Soporte en español</span>
+        </div>
+      </div>
+      <!-- Mockup: tarjeta de empleado / planilla -->
+      <div class="relative fu fu-3">
+        <div aria-hidden class="absolute -inset-8 -z-10 rounded-3xl brand-grad opacity-20 blur-2xl animate-gradient"></div>
+        <div class="relative rounded-2xl border border-border bg-card shadow-2xl shadow-primary/10 overflow-hidden animate-floaty">
+          <div class="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3">
+            <div class="h-9 w-9 rounded-full brand-grad flex items-center justify-center text-white"><i data-lucide="user" class="h-4 w-4"></i></div>
+            <div class="flex-1">
+              <div class="font-display text-sm font-bold leading-tight">María Fernández · Cajera</div>
+              <div class="text-[11px] text-success inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse2"></span> Activa · Sucursal Centro</div>
+            </div>
+            <span class="text-[10px] font-mono text-muted-foreground">Planilla · Junio</span>
+          </div>
+          <div class="p-4 space-y-3 bg-background/40">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="rounded-xl border border-border bg-card px-3 py-2.5">
+                <div class="text-[9px] uppercase tracking-wider text-muted-foreground">Vacaciones</div>
+                <div class="font-display text-lg font-bold mt-0.5">8.5 <span class="text-xs font-medium text-muted-foreground">días</span></div>
+              </div>
+              <div class="rounded-xl border border-border bg-card px-3 py-2.5">
+                <div class="text-[9px] uppercase tracking-wider text-muted-foreground">Horas extra</div>
+                <div class="font-display text-lg font-bold mt-0.5">12 <span class="text-xs font-medium text-muted-foreground">h</span></div>
+              </div>
+              <div class="rounded-xl border border-border bg-card px-3 py-2.5">
+                <div class="text-[9px] uppercase tracking-wider text-muted-foreground">Ausencias</div>
+                <div class="font-display text-lg font-bold mt-0.5">0</div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-3">
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-muted-foreground">Salario bruto</span><span class="font-semibold font-mono">₡485.000</span>
+              </div>
+              <div class="flex items-center justify-between text-sm mt-1.5">
+                <span class="text-muted-foreground">Cargas CCSS (obrero)</span><span class="font-mono text-destructive">−₡51.750</span>
+              </div>
+              <div class="flex items-center justify-between text-sm mt-1.5 pt-2 border-t border-border">
+                <span class="font-semibold">Neto a pagar</span><span class="font-display font-bold text-base text-grad">₡433.250</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-muted-foreground"><i data-lucide="zap" class="h-3 w-3 text-accent"></i> Calculado desde el marcaje · listo para SICERE</div>
+          </div>
+        </div>
+        <div class="absolute -left-5 top-1/3 hidden sm:flex items-center gap-2 rounded-xl border border-success/30 bg-card/95 backdrop-blur p-3 shadow-xl animate-floaty" style="animation-delay:-2s">
+          <div class="h-8 w-8 rounded-lg bg-success/10 text-success flex items-center justify-center"><i data-lucide="calendar-check" class="h-4 w-4"></i></div>
+          <div><div class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Vacaciones</div><div class="text-xs font-semibold">Saldo automático</div></div>
+        </div>
+        <div class="absolute -right-4 bottom-10 hidden sm:flex items-center gap-2 rounded-xl border border-accent/30 bg-card/95 backdrop-blur p-3 shadow-xl animate-floaty" style="animation-delay:-1s">
+          <div class="h-8 w-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center"><i data-lucide="gift" class="h-4 w-4"></i></div>
+          <div><div class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Aguinaldo</div><div class="text-xs font-semibold">Proyectado solo</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔═ MARQUEE ═╗ -->
+<section class="py-10 border-y border-border bg-muted/30 overflow-hidden">
+  <div class="text-center mb-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">Todo tu equipo y tu planilla, en un solo lugar</div>
+  <div class="relative">
+    <div class="flex gap-12 animate-marquee whitespace-nowrap w-max"><span id="marqueeContent"></span></div>
+    <div class="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent"></div>
+    <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent"></div>
+  </div>
+</section>
+
+<!-- ╔═ FUNCIONES ═╗ -->
+<section id="funciones" class="py-24 sm:py-32">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Funciones</div>
+      <h2 class="font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-4">El RRHH de tu PyME, ordenado.</h2>
+      <p class="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">Cada función resuelve un dolor real de manejar personal en Costa Rica.</p>
+    </div>
+    <div id="featuresGrid" class="mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+  </div>
+</section>
+
+<!-- ╔═ INTEGRACIÓN MARCAJE ═╗ -->
+<section class="py-20 border-y border-border bg-muted/20">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <div class="reveal">
+        <div class="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">El diferenciador</div>
+        <h2 class="font-display text-3xl sm:text-4xl font-black tracking-tight mt-4">El dato más caro de RRHH ya lo tenés.</h2>
+        <p class="mt-4 text-base text-muted-foreground">Tu Centralia Marcaje captura las horas reales: entradas, salidas, faltas y tardías. Personas las convierte —sin doble digitación— en vacaciones, horas extra y planilla. Mientras la competencia importa datos a mano, vos ya los tenés en casa.</p>
+        <div class="mt-6 space-y-3">
+          <div class="flex items-center gap-3 text-sm"><span class="h-7 w-7 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0"><i data-lucide="check" class="h-4 w-4"></i></span> Vacaciones proporcionales en tiempo real</div>
+          <div class="flex items-center gap-3 text-sm"><span class="h-7 w-7 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0"><i data-lucide="check" class="h-4 w-4"></i></span> Horas extra que vienen del marcaje, no del Excel</div>
+          <div class="flex items-center gap-3 text-sm"><span class="h-7 w-7 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0"><i data-lucide="check" class="h-4 w-4"></i></span> Implementación en días, no en semanas</div>
+        </div>
+      </div>
+      <div class="reveal relative">
+        <div class="rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="h-10 w-10 rounded-xl flex items-center justify-center text-white shrink-0" style="background:linear-gradient(120deg,#f59e0b,#b45309)"><i data-lucide="fingerprint" class="h-5 w-5"></i></span>
+              <div><div class="font-display font-bold text-sm">Marcaje</div><div class="text-xs text-muted-foreground">Horas reales</div></div>
+            </div>
+            <i data-lucide="arrow-right" class="h-5 w-5 text-muted-foreground"></i>
+            <div class="flex items-center gap-3">
+              <span class="logo-sq brand-grad"><i data-lucide="users-round"></i></span>
+              <div><div class="font-display font-bold text-sm">Personas</div><div class="text-xs text-muted-foreground">Planilla lista</div></div>
+            </div>
+          </div>
+          <div class="mt-5 space-y-2">
+            <div class="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm"><span class="text-muted-foreground">Entrada 07:58 · Salida 18:10</span><span class="font-mono text-xs text-success">+2h extra</span></div>
+            <div class="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm"><span class="text-muted-foreground">Semana 24 · completa</span><span class="font-mono text-xs">48 h</span></div>
+            <div class="flex items-center justify-between rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-sm"><span class="font-semibold">→ Planilla de junio</span><span class="font-mono text-xs text-grad font-bold">auto</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔═ NÓMINA / PLATAFORMA ═╗ -->
+<section id="nomina" class="py-24 sm:py-32 bg-gradient-to-b from-transparent via-muted/20 to-transparent">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Nómina Costa Rica</div>
+      <h2 class="font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-4">La planilla, sin dolores de cabeza.</h2>
+      <p class="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">Cumple con la ley costarricense y se actualiza cuando cambian los porcentajes. Vos solo revisás y aprobás.</p>
+    </div>
+    <div id="platformGrid" class="mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+  </div>
+</section>
+
+<!-- ╔═ NÚMEROS ═╗ -->
+<section class="py-20 border-y border-border bg-muted/20">
+  <div class="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-12" id="numbers"></div>
+</section>
+
+<!-- ╔═ PRECIOS ═╗ -->
+<section id="precios" class="py-24 sm:py-32 relative overflow-hidden">
+  <div aria-hidden class="absolute inset-0 -z-10"><div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[40rem] w-[40rem] rounded-full bg-primary/10 blur-3xl"></div></div>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Precios</div>
+      <h2 class="font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-4">Pagás por empleado, sin sorpresas.</h2>
+      <p class="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">Empezá por la gestión de personal y sumá la nómina cuando estés listo.</p>
+    </div>
+    <div id="pricingGrid" class="reveal mt-16 grid md:grid-cols-3 gap-5 max-w-5xl mx-auto"></div>
+    <p class="text-center text-xs text-muted-foreground mt-8">Precios de referencia por empleado activo al mes. Descuento al combinar con Marcaje y POS. Cambiás o cancelás cuando quieras.</p>
+  </div>
+</section>
+
+<!-- ╔═ SEGURIDAD ═╗ -->
+<section class="py-24 sm:py-32">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Confianza</div>
+      <h2 class="font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-4">Datos sensibles, bien cuidados.</h2>
+      <p class="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">Salarios, cédulas y expedientes: tu información y la de tu equipo está protegida.</p>
+    </div>
+    <div id="securityGrid" class="reveal mt-16 grid md:grid-cols-2 gap-5 max-w-4xl mx-auto"></div>
+  </div>
+</section>
+
+<!-- ╔═ PREGUNTAS ═╗ -->
+<section id="preguntas" class="py-24 sm:py-32 bg-muted/20">
+  <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Preguntas</div>
+      <h2 class="font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-4">Lo que más nos preguntan.</h2>
+    </div>
+    <div id="faqList" class="mt-12 space-y-2"></div>
+  </div>
+</section>
+
+<!-- ╔═ CTA FINAL ═╗ -->
+<section id="contacto" class="py-24 sm:py-32">
+  <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+    <div class="reveal relative overflow-hidden rounded-3xl border border-primary/30 brand-grad animate-gradient px-8 py-16 sm:px-16 text-center">
+      <div aria-hidden class="absolute -top-32 -right-32 h-80 w-80 rounded-full bg-white/20 blur-3xl"></div>
+      <div aria-hidden class="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-black/10 blur-3xl"></div>
+      <div class="relative">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-xs font-semibold text-white mb-6"><i data-lucide="sparkles" class="h-3 w-3"></i> Dejá el Excel atrás</span>
+        <h2 class="font-display text-3xl sm:text-5xl font-black tracking-tight text-white">¿Listo para que tu planilla se calcule sola?</h2>
+        <p class="mt-4 text-base sm:text-lg text-white/90 max-w-2xl mx-auto">Conectás tu Marcaje y empezás a gestionar vacaciones y planilla en minutos.</p>
+        <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          <a id="waCta" href="#" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-xl bg-white text-base font-bold text-primary shadow-xl hover:scale-[1.03] transition-transform">Solicitar demo <i data-lucide="arrow-right" class="h-4 w-4"></i></a>
+          <a href="#precios" class="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-xl bg-white/15 backdrop-blur border border-white/30 text-base font-semibold text-white hover:bg-white/25 transition">Ver planes</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ╔═ FOOTER ═╗ -->
+<footer class="border-t border-border bg-muted/30">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div>
+        <a href="#" class="flex items-center gap-2.5">
+          <span class="logo-sq brand-grad"><i data-lucide="users-round"></i></span>
+          <span class="font-display text-lg font-bold">Centralia Personas</span>
+        </a>
+        <p class="text-xs text-muted-foreground mt-3 max-w-xs">RRHH y nómina para Costa Rica, sobre las horas reales de tu Marcaje.</p>
+      </div>
+      <div>
+        <h4 class="font-semibold text-sm mb-3">Producto</h4>
+        <ul class="space-y-2 text-sm text-muted-foreground">
+          <li><a href="#funciones" class="hover:text-foreground transition-colors">Funciones</a></li>
+          <li><a href="#nomina" class="hover:text-foreground transition-colors">Nómina</a></li>
+          <li><a href="#precios" class="hover:text-foreground transition-colors">Precios</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-semibold text-sm mb-3">Acceso</h4>
+        <ul class="space-y-2 text-sm text-muted-foreground">
+          <li><a href="#contacto" class="hover:text-foreground transition-colors">Iniciar sesión</a></li>
+          <li><a href="#contacto" class="hover:text-foreground transition-colors">Solicitar demo</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-semibold text-sm mb-3">Suite Centralia</h4>
+        <ul class="space-y-2 text-sm text-muted-foreground">
+          <li><a href="#" class="hover:text-foreground transition-colors">Centralia ChatBot</a></li>
+          <li><a href="#" class="hover:text-foreground transition-colors">Centralia POS</a></li>
+          <li><a href="#" class="hover:text-foreground transition-colors">Centralia Marcaje</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+      <span>© <span id="year"></span> Centralia · Personas. Hecho en Costa Rica.</span>
+      <span class="font-mono">centralia-personas</span>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<!-- ╔═ WIDGET FLOTANTE ═╗ -->
+<a id="waFloat" href="#" target="_blank" rel="noopener" aria-label="Hablar con ventas" class="brand-grad animate-gradient fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl shadow-primary/30 transition hover:scale-105">
+  <i data-lucide="message-circle" class="h-6 w-6"></i>
+</a>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  const WHATSAPP_VENTAS = "50600000000"; // ⚠️ Reemplazá por el número real de ventas
+  const waLink = `https://wa.me/${WHATSAPP_VENTAS}?text=${encodeURIComponent("Hola, quiero una demo de Centralia Personas para mi negocio")}`;
+  document.getElementById("waFloat").href = waLink;
+  document.getElementById("waCta").href = waLink;
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); }
+  function toggleTheme(){ const c=document.documentElement.getAttribute("data-theme"); const n=c==="dark"?"light":"dark"; localStorage.setItem("cc_theme", n); applyTheme(n); refreshThemeIcon(); }
+  function refreshThemeIcon(){ const dark=document.documentElement.getAttribute("data-theme")==="dark"; const el=document.getElementById("themeIco"); if(el){ el.setAttribute("data-lucide", dark?"moon":"sun"); if(window.lucide) lucide.createIcons(); } }
+  applyTheme(localStorage.getItem("cc_theme")||"dark");
+
+  const nav=document.getElementById("nav");
+  function onScroll(){ if(window.scrollY>16){ nav.classList.add("border-b","border-border","bg-background/80","backdrop-blur-xl","shadow-sm"); } else { nav.classList.remove("border-b","border-border","bg-background/80","backdrop-blur-xl","shadow-sm"); } }
+  window.addEventListener("scroll", onScroll, { passive:true }); onScroll();
+
+  const ICON=(n,c="")=>`<i data-lucide="${n}" class="${c}"></i>`;
+
+  const marquee=["Calcula vacaciones solo","Solicitudes y aprobaciones","Planilla CCSS","Aguinaldo proyectado","Horas extra del marcaje","Colillas digitales","Liquidaciones y cesantía","Expediente del empleado","Archivo para SICERE"];
+  const stream=[...marquee,...marquee].map(t=>`<span class="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground/70"><span class="h-1.5 w-1.5 rounded-full bg-primary/40"></span>${t}</span>`).join('<span class="w-12 inline-block"></span>');
+  document.getElementById("marqueeContent").outerHTML = stream;
+
+  const tone=t=>t==="primary"?"bg-primary/10 text-primary border-primary/20":t==="accent"?"bg-accent/10 text-accent border-accent/20":"bg-warning/10 text-warning border-warning/20";
+  const features=[
+    ["calendar-check","Vacaciones automáticas","El saldo se acumula proporcional a las semanas trabajadas. Se acabó el cálculo a mano.","primary"],
+    ["clipboard-list","Solicitudes y aprobaciones","Vacaciones, permisos e incapacidades con flujo de aprobación del jefe. Todo queda registrado.","accent"],
+    ["folder-open","Expediente digital","Datos, contrato, salario y documentos de cada empleado, ordenados y a un clic.","warning"],
+    ["bell-ring","Alertas a tiempo","Fin de período de prueba, vacaciones sin tomar, contratos por vencer: te avisa antes.","primary"],
+    ["stethoscope","Ausencias e incapacidades","Faltas, tardías e incapacidades CCSS/INS, ligadas a la asistencia real del marcaje.","accent"],
+    ["smartphone","Autoservicio por WhatsApp","Tu equipo consulta su saldo, pide vacaciones y recibe la colilla por chat. Sin app nueva.","warning"],
+  ];
+  document.getElementById("featuresGrid").innerHTML=features.map(([ic,ti,de,to])=>`
+    <div class="reveal group relative rounded-2xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30">
+      <div class="inline-flex h-11 w-11 items-center justify-center rounded-xl border mb-4 transition-transform group-hover:scale-110 ${tone(to)}">${ICON(ic,"h-5 w-5")}</div>
+      <h3 class="font-display text-base font-semibold mb-1.5">${ti}</h3>
+      <p class="text-sm text-muted-foreground leading-relaxed">${de}</p>
+    </div>`).join("");
+
+  const platform=[
+    ["calculator","Planilla con horas reales","Quincenal o mensual, con ordinarias, extra y ausencias que vienen directo del marcaje."],
+    ["landmark","Cargas sociales CCSS","Aporte patronal y obrero calculados sobre los porcentajes vigentes, siempre al día."],
+    ["gift","Aguinaldo sin Excel","Promedia los salarios de diciembre a noviembre y proyecta el pago de fin de año."],
+    ["receipt","Colillas digitales","Cada empleado recibe su colilla; vos generás el archivo para SICERE y el banco."],
+    ["file-minus","Liquidaciones y cesantía","Calcula prestaciones al terminar la relación laboral, según la ley costarricense."],
+    ["bar-chart-3","Reportes de planilla","Costo por sucursal, ausentismo y rotación: mirá cómo se mueve tu equipo."],
+  ];
+  document.getElementById("platformGrid").innerHTML=platform.map(([ic,ti,de])=>`
+    <div class="reveal rounded-2xl border border-border bg-card p-6 transition-colors hover:border-accent/30">
+      <div class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent mb-4">${ICON(ic,"h-5 w-5")}</div>
+      <h3 class="font-display text-base font-semibold mb-1.5">${ti}</h3>
+      <p class="text-sm text-muted-foreground leading-relaxed">${de}</p>
+    </div>`).join("");
+
+  const numbers=[["14 días","Vacaciones de ley","calculadas solas"],["CCSS","Cumplimiento","cargas siempre al día"],["−Horas","Menos trabajo","de cierre de planilla"],["1 suite","Marcaje + Personas","el dato fluye solo"]];
+  document.getElementById("numbers").innerHTML=numbers.map(([v,l,d])=>`
+    <div class="text-center">
+      <div class="font-display text-4xl lg:text-5xl font-black text-grad animate-gradient">${v}</div>
+      <div class="mt-2 text-sm font-semibold">${l}</div>
+      <div class="text-xs text-muted-foreground mt-0.5">${d}</div>
+    </div>`).join("");
+
+  const plans=[
+    ["Personas Base","Para ordenar tu equipo y tus vacaciones.","por empleado/mes",[
+      "Expediente digital del empleado","Vacaciones proporcionales automáticas","Solicitudes y aprobaciones","Control de ausencias e incapacidades","Alertas y vencimientos","Soporte en español"],false],
+    ["Personas Nómina","Toda la planilla, lista para la CCSS.","por empleado/mes",[
+      "Todo lo de Base","Planilla quincenal o mensual","Cargas sociales CCSS automáticas","Aguinaldo y horas extra","Colillas + archivo SICERE/banco","Liquidaciones y cesantía"],true],
+    ["Suite Centralia","Personas + Marcaje + POS con descuento.","a la medida",[
+      "Todo lo de Nómina","Integración total con Marcaje","Autoservicio por WhatsApp","Reportes de planilla y rotación","Precio combinado por suite","Soporte prioritario"],false],
+  ];
+  document.getElementById("pricingGrid").innerHTML=plans.map(([n,d,p,fs,star])=>`
+    <div class="relative rounded-2xl border bg-card p-7 flex flex-col transition-all duration-300 ${star?'border-primary/50 shadow-2xl shadow-primary/15 lg:scale-105 lg:-translate-y-2':'border-border hover:-translate-y-1 hover:shadow-xl hover:border-primary/30'}">
+      ${star?`<div class="absolute -top-3 left-1/2 -translate-x-1/2"><span class="inline-flex items-center gap-1 rounded-full brand-grad px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">${ICON("star","h-3 w-3 fill-current")} Más popular</span></div>`:""}
+      <h3 class="font-display text-2xl font-bold">${n}</h3>
+      <p class="text-sm text-muted-foreground mt-1 min-h-[2.5rem]">${d}</p>
+      <div class="my-6 flex items-baseline gap-1"><span class="font-display text-2xl font-black text-grad">${p}</span></div>
+      <ul class="space-y-2.5 flex-1 mb-6">${fs.map(f=>`<li class="flex items-start gap-2 text-sm">${ICON("check","h-4 w-4 text-success shrink-0 mt-0.5")}<span>${f}</span></li>`).join("")}</ul>
+      <a href="#contacto" class="inline-flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold ${star?'brand-grad text-white shadow-lg shadow-primary/25':'border border-border hover:border-primary/40'} transition">Solicitar demo ${ICON("arrow-right","h-4 w-4")}</a>
+    </div>`).join("");
+
+  const security=[
+    ["lock","Tu información, protegida","Salarios, expedientes y datos de tu equipo, cifrados y a buen resguardo."],
+    ["shield-check","Solo tuyo","La información de tu empresa nunca se mezcla con la de otros negocios."],
+    ["key-round","Accesos por rol","Cada persona ve solo lo que le corresponde: RRHH, jefatura o empleado."],
+    ["scale","Al día con la ley","Vacaciones, aguinaldo y cargas CCSS según el Código de Trabajo de Costa Rica."],
+  ];
+  document.getElementById("securityGrid").innerHTML=security.map(([ic,ti,de])=>`
+    <div class="rounded-2xl border border-border bg-card p-6 flex gap-4 hover:border-primary/30 transition-colors">
+      <div class="shrink-0 h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">${ICON(ic,"h-5 w-5")}</div>
+      <div><h3 class="font-display font-semibold">${ti}</h3><p class="text-sm text-muted-foreground mt-1.5 leading-relaxed">${de}</p></div>
+    </div>`).join("");
+
+  const faqs=[
+    ["¿Necesito tener Centralia Marcaje?","Funciona mejor con Marcaje, porque de ahí salen las horas reales para vacaciones y planilla. Si todavía no lo tenés, te ayudamos a conectarlo."],
+    ["¿Calcula bien las vacaciones de Costa Rica?","Sí. Acumula proporcional a las semanas trabajadas, según el Código de Trabajo, y muestra el saldo disponible de cada empleado."],
+    ["¿Y las cargas sociales de la CCSS?","Las calcula automáticamente sobre los porcentajes vigentes (patrono y trabajador) y los actualiza cuando cambian, sin que tengás que tocar nada."],
+    ["¿Genera el aguinaldo?","Sí. Promedia los salarios de diciembre a noviembre y proyecta el monto para que lo pagués antes del 20 de diciembre."],
+    ["¿Mi equipo puede pedir vacaciones por WhatsApp?","Sí. Con el autoservicio consultan su saldo, solicitan días y reciben la colilla por chat, sin instalar ninguna app."],
+    ["¿Sirve para mi tipo de negocio?","Retail, restaurantes, servicios o empresas medianas: se adapta a turnos, sucursales y a la forma en que pagás a tu gente."],
+    ["¿Cómo se cobra?","Por empleado activo al mes. Si combinás Personas con Marcaje y POS, tenés descuento de suite."],
+  ];
+  document.getElementById("faqList").innerHTML=faqs.map(([q,a])=>`
+    <details class="group rounded-xl border border-border bg-card open:border-primary/30 open:shadow-sm transition-all">
+      <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-medium select-none list-none">${q}${ICON("chevron-down","h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180")}</summary>
+      <div class="px-5 pb-4 text-sm text-muted-foreground leading-relaxed">${a}</div>
+    </details>`).join("");
+
+  if(window.lucide) lucide.createIcons();
+  refreshThemeIcon();
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target);} }),{threshold:.12});
+  document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

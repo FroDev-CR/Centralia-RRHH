@@ -1,0 +1,11 @@
+{
+  "name": "centralia-rrhh",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Centralia Personas — RRHH y Nómina para Costa Rica. Sitio estático (landing + app).",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "license": "UNLICENSED"
+}

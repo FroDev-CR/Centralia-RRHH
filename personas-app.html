@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Centralia · Personas — Gestión de personal y nómina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: {
+      background:"rgb(var(--bg) / <alpha-value>)", foreground:"rgb(var(--fg) / <alpha-value>)",
+      card:"rgb(var(--card) / <alpha-value>)", border:"rgb(var(--border) / <alpha-value>)",
+      muted:{DEFAULT:"rgb(var(--muted) / <alpha-value>)", foreground:"rgb(var(--muted-fg) / <alpha-value>)"},
+      primary:{DEFAULT:"rgb(var(--primary) / <alpha-value>)", foreground:"rgb(var(--primary-fg) / <alpha-value>)"},
+      accent:"rgb(var(--accent) / <alpha-value>)", brand3:"rgb(var(--brand3) / <alpha-value>)",
+      success:"rgb(var(--success) / <alpha-value>)", warning:"rgb(var(--warning) / <alpha-value>)",
+      destructive:"rgb(var(--destructive) / <alpha-value>)",
+    },
+    fontFamily:{ sans:['Poppins','system-ui','sans-serif'], display:['Poppins','system-ui','sans-serif'], mono:['"JetBrains Mono"','ui-monospace','monospace'] },
+  } } };
+</script>
+<style>
+  :root, :root[data-theme="dark"]{
+    --bg:6 8 11; --fg:242 246 248; --card:16 22 26; --border:33 44 48;
+    --muted:22 30 33; --muted-fg:151 168 172;
+    --primary:13 148 136; --primary-fg:255 255 255; --accent:79 70 229; --brand3:16 185 129;
+    --success:52 211 153; --warning:251 191 36; --destructive:248 113 113;
+  }
+  :root[data-theme="light"]{
+    --bg:243 248 247; --fg:14 38 36; --card:255 255 255; --border:214 230 226;
+    --muted:235 244 242; --muted-fg:80 102 100;
+    --primary:13 148 136; --primary-fg:255 255 255; --accent:67 56 202; --brand3:5 150 105;
+    --success:16 185 129; --warning:217 119 6; --destructive:220 38 38;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{background:rgb(var(--bg));color:rgb(var(--fg));font-family:'Poppins',system-ui,sans-serif;margin:0}
+  .brand-grad{background-image:linear-gradient(120deg,#0d9488 0%,#10b981 46%,#4f46e5 100%);background-size:200% 200%}
+  .text-grad{background-image:linear-gradient(120deg,#14b8a6,#10b981,#6366f1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .logo-sq{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;box-shadow:0 8px 22px -8px rgba(16,185,129,.6);flex:none}
+  .logo-sq svg{width:19px;height:19px;color:#fff}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgb(var(--border));border-radius:8px}
+  .scrim{position:fixed;inset:0;background:rgba(2,6,8,.6);backdrop-filter:blur(4px);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s ease}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .modal{position:fixed;z-index:70;top:50%;left:50%;transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:all .24s cubic-bezier(.3,.8,.3,1);width:600px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column}
+  .modal.open{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:520px;max-width:94vw;z-index:70;transform:translateX(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .field label{display:block;font-size:12px;font-weight:600;color:rgb(var(--muted-fg));margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:10px;color:rgb(var(--fg));font-family:inherit;font-size:14px;padding:10px 12px;outline:none;transition:border-color .15s,box-shadow .15s}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:rgb(var(--primary));box-shadow:0 0 0 3px rgba(13,148,136,.25)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(16px);background:rgb(var(--card));border:1px solid rgb(var(--border));color:rgb(var(--fg));padding:12px 18px;border-radius:12px;font-size:13.5px;z-index:90;opacity:0;pointer-events:none;transition:all .22s ease;box-shadow:0 14px 34px -18px rgba(0,0,0,.6)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .nav-item.on{background:rgba(13,148,136,.12);color:rgb(var(--fg));box-shadow:inset 0 0 0 1px rgb(var(--border))}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .rise{opacity:0;transform:translateY(10px);animation:rise .4s cubic-bezier(.2,.7,.2,1) forwards}
+  @media(max-width:860px){ .shell{grid-template-columns:1fr !important} .sidebar{display:none} .mtopnav{display:flex !important} }
+</style>
+</head>
+<body>
+<div class="shell" style="display:grid;grid-template-columns:248px 1fr;height:100vh">
+
+  <aside class="sidebar" style="background:rgb(var(--card));border-right:1px solid rgb(var(--border));display:flex;flex-direction:column;padding:18px 14px">
+    <div style="display:flex;align-items:center;gap:11px;padding:6px 8px 18px;border-bottom:1px solid rgb(var(--border));margin-bottom:14px">
+      <span class="logo-sq brand-grad"><i data-lucide="users-round"></i></span>
+      <div style="line-height:1.1">
+        <div style="font-weight:800;font-size:15px">Centralia</div>
+        <div style="font-size:12px;color:rgb(var(--muted-fg))">Personas</div>
+      </div>
+    </div>
+    <nav id="nav" style="flex:1;display:flex;flex-direction:column;gap:3px"></nav>
+    <div style="border-top:1px solid rgb(var(--border));padding-top:12px;display:flex;flex-direction:column;gap:4px">
+      <button onclick="toggleTheme()" class="nav-item" style="display:flex;align-items:center;gap:10px;background:none;border:none;color:rgb(var(--muted-fg));font-family:inherit;font-size:13.5px;font-weight:500;padding:10px;border-radius:9px;cursor:pointer;text-align:left">
+        <i data-lucide="moon" id="themeIco" style="width:16px;height:16px"></i> <span id="themeLbl">Modo claro</span>
+      </button>
+      <button onclick="exportData()" class="nav-item" style="display:flex;align-items:center;gap:10px;background:none;border:none;color:rgb(var(--muted-fg));font-family:inherit;font-size:13.5px;font-weight:500;padding:10px;border-radius:9px;cursor:pointer;text-align:left">
+        <i data-lucide="download" style="width:16px;height:16px"></i> Exportar datos
+      </button>
+    </div>
+  </aside>
+
+  <main style="overflow-y:auto;min-width:0">
+    <div class="mtopnav" style="display:none;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgb(var(--border));position:sticky;top:0;background:rgb(var(--bg));z-index:20">
+      <div style="display:flex;align-items:center;gap:9px"><span class="logo-sq brand-grad"><i data-lucide="users-round"></i></span><b>Personas</b></div>
+      <select id="mNav" onchange="go(this.value)" style="background:rgb(var(--muted));border:1px solid rgb(var(--border));color:rgb(var(--fg));border-radius:9px;padding:8px 10px;font-family:inherit"></select>
+    </div>
+    <div id="view" style="max-width:1120px;margin:0 auto;padding:30px 28px 80px"></div>
+  </main>
+</div>
+
+<div id="scrim" class="scrim" onclick="closeAll()"></div>
+<div id="modal" class="modal"><div style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:18px;overflow:hidden;display:flex;flex-direction:column;max-height:90vh" id="modalBox"></div></div>
+<div id="drawer" class="drawer"><div style="background:rgb(var(--card));border-left:1px solid rgb(var(--border));height:100%;display:flex;flex-direction:column" id="drawerBox"></div></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+/* ============================================================
+   Centralia Personas — Gestión de personal (Ola 1) + Nómina (Ola 2)
+   Estado en localStorage. Arranca vacío.
+   ============================================================ */
+const KEY="centralia_personas_v1";
+const DAY=86400000;
+const VAC_ANUAL=14;     // días de vacaciones por año (mínimo de ley CR)
+const PRUEBA_DIAS=90;   // período de prueba ~3 meses
+
+let state = load();
+let activeView = "inicio";
+
+function load(){
+  try{ const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.employees){ return normalize(r); } }catch(e){}
+  return { company:{nombre:"", ccssObrero:10.67, ccssPatrono:26.67}, employees:[], requests:[], absences:[], payroll:{} };
+}
+function normalize(r){
+  r.company=r.company||{}; if(r.company.nombre==null) r.company.nombre="";
+  if(r.company.ccssObrero==null) r.company.ccssObrero=10.67;
+  if(r.company.ccssPatrono==null) r.company.ccssPatrono=26.67;
+  r.employees=r.employees||[]; r.requests=r.requests||[]; r.absences=r.absences||[]; r.payroll=r.payroll||{};
+  return r;
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ---------- utilidades ---------- */
+const fmtMoney = n => "₡"+ Math.round(Number(n)||0).toLocaleString("es-CR");
+const todayISO = () => new Date().toISOString().slice(0,10);
+function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString("es-CR",{day:"2-digit",month:"short",year:"numeric"}); }
+function daysBetween(a,b){ return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/DAY); }
+function inclusiveDays(a,b){ const d=daysBetween(a,b); return d>=0? d+1 : 0; }
+function addDays(iso,n){ const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- vacaciones (proporcional, ley CR) ---------- */
+function vacAccrued(emp){ if(!emp.ingreso) return 0; const dd=Math.max(0,daysBetween(emp.ingreso,todayISO())); return (dd/365)*VAC_ANUAL; }
+function vacTaken(emp){ return state.requests.filter(r=>r.empId===emp.id && r.tipo==="Vacaciones" && r.estado==="Aprobada").reduce((s,r)=>s+(Number(r.dias)||0),0); }
+function vacBalance(emp){ return vacAccrued(emp)-vacTaken(emp); }
+
+/* ---------- alertas derivadas ---------- */
+function buildAlerts(){
+  const out=[]; const t=todayISO();
+  state.employees.forEach(e=>{
+    if(e.ingreso){
+      const finPrueba=addDays(e.ingreso,PRUEBA_DIAS); const d=daysBetween(t,finPrueba);
+      if(d>=0 && d<=15) out.push({emp:e,txt:`Termina el período de prueba el ${fmtDate(finPrueba)}`,ico:"timer",tone:"warning"});
+    }
+    const bal=vacBalance(e);
+    if(bal>=12) out.push({emp:e,txt:`Tiene ${bal.toFixed(1)} días de vacaciones acumulados sin tomar`,ico:"umbrella",tone:"primary"});
+    if(e.contrato==="Plazo fijo" && e.contratoFin){
+      const d=daysBetween(t,e.contratoFin);
+      if(d>=0 && d<=30) out.push({emp:e,txt:`Contrato a plazo fijo vence el ${fmtDate(e.contratoFin)}`,ico:"file-clock",tone:"destructive"});
+    }
+  });
+  return out;
+}
+
+/* ---------- navegación ---------- */
+const NAV=[
+  ["inicio","Inicio","layout-dashboard"],
+  ["empleados","Empleados","users"],
+  ["solicitudes","Solicitudes","clipboard-list"],
+  ["ausencias","Ausencias","calendar-x"],
+  ["nomina","Nómina","banknote"],
+  ["alertas","Alertas","bell-ring"],
+  ["ajustes","Ajustes","settings"],
+];
+function renderNav(){
+  document.getElementById("nav").innerHTML = NAV.map(([id,lbl,ic])=>`
+    <button onclick="go('${id}')" class="nav-item ${activeView===id?'on':''}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;color:rgb(var(--muted-fg));font-family:inherit;font-size:13.5px;font-weight:${activeView===id?'600':'500'};padding:10px;border-radius:9px;cursor:pointer">
+      <i data-lucide="${ic}" style="width:16px;height:16px"></i> ${lbl} ${badgeFor(id)}
+    </button>`).join("");
+  const m=document.getElementById("mNav");
+  m.innerHTML = NAV.map(([id,lbl])=>`<option value="${id}" ${activeView===id?'selected':''}>${lbl}</option>`).join("");
+  icons();
+}
+function badgeFor(id){
+  let n=0;
+  if(id==="solicitudes") n=state.requests.filter(r=>r.estado==="Pendiente").length;
+  if(id==="alertas") n=buildAlerts().length;
+  if(!n) return "";
+  return `<span style="margin-left:auto;font-size:11px;font-weight:700;background:rgba(13,148,136,.16);color:rgb(var(--primary));border-radius:999px;padding:1px 8px">${n}</span>`;
+}
+function go(v){ activeView=v; renderNav(); render(); window.scrollTo(0,0); }
+
+/* ============================================================
+   VISTAS
+   ============================================================ */
+function render(){
+  const v=document.getElementById("view");
+  if(activeView==="inicio") v.innerHTML=viewInicio();
+  else if(activeView==="empleados") v.innerHTML=viewEmpleados();
+  else if(activeView==="solicitudes") v.innerHTML=viewSolicitudes();
+  else if(activeView==="ausencias") v.innerHTML=viewAusencias();
+  else if(activeView==="nomina") v.innerHTML=viewNomina();
+  else if(activeView==="alertas") v.innerHTML=viewAlertas();
+  else if(activeView==="ajustes") v.innerHTML=viewAjustes();
+  icons();
+}
+function pageHead(title,sub,actionHtml=""){
+  return `<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap">
+    <div><h1 style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0">${title}</h1>
+    <p style="color:rgb(var(--muted-fg));font-size:14px;margin:6px 0 0">${sub}</p></div>${actionHtml}</div>`;
+}
+function btnPrimary(label,onclick,ico="plus"){
+  return `<button onclick="${onclick}" class="brand-grad" style="display:inline-flex;align-items:center;gap:7px;color:#fff;border:none;border-radius:11px;padding:11px 16px;font-family:inherit;font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 8px 22px -10px rgba(13,148,136,.6)"><i data-lucide="${ico}" style="width:16px;height:16px"></i>${label}</button>`;
+}
+function emptyState(ico,title,desc,actionHtml=""){
+  return `<div class="rise" style="text-align:center;padding:70px 24px;border:1.5px dashed rgb(var(--border));border-radius:18px;background:rgb(var(--card))">
+    <div class="logo-sq brand-grad" style="width:54px;height:54px;border-radius:16px;margin:0 auto 16px"><i data-lucide="${ico}" style="width:26px;height:26px"></i></div>
+    <div style="font-size:17px;font-weight:700">${title}</div>
+    <p style="color:rgb(var(--muted-fg));font-size:14px;max-width:420px;margin:8px auto 18px">${desc}</p>${actionHtml}</div>`;
+}
+function statCard(k,v,foot,ico,tone="primary"){
+  const c = tone==="primary"?"13,148,136":tone==="accent"?"79,70,229":tone==="warning"?"251,191,36":"248,113,113";
+  return `<div class="rise" style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:16px;padding:18px 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgb(var(--muted-fg))">${k}</span>
+      <span style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:rgba(${c},.12);color:rgb(${c})"><i data-lucide="${ico}" style="width:16px;height:16px"></i></span>
+    </div>
+    <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:10px">${v}</div>
+    <div style="font-size:12.5px;color:rgb(var(--muted-fg));margin-top:4px">${foot}</div>
+  </div>`;
+}
+
+/* ---- INICIO ---- */
+function viewInicio(){
+  const emp=state.employees;
+  const pend=state.requests.filter(r=>r.estado==="Pendiente");
+  const alerts=buildAlerts();
+  const mes=todayISO().slice(0,7);
+  const ausMes=state.absences.filter(a=>a.fecha && a.fecha.slice(0,7)===mes);
+  const head=pageHead("Inicio", state.company.nombre? `Resumen de ${esc(state.company.nombre)}`:"Resumen de tu equipo",
+    btnPrimary("Agregar empleado","openEmpModal()"));
+  if(emp.length===0){
+    return head + emptyState("users","Todavía no hay empleados",
+      "Agregá a tu primer colaborador para empezar a calcular vacaciones, registrar solicitudes y llevar el expediente.",
+      btnPrimary("Agregar primer empleado","openEmpModal()"));
+  }
+  const cards=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:26px">
+    ${statCard("Empleados", emp.length, "activos en planilla","users","primary")}
+    ${statCard("Solicitudes", pend.length, "pendientes de aprobar","clipboard-list","accent")}
+    ${statCard("Ausencias", ausMes.length, "registradas este mes","calendar-x","warning")}
+    ${statCard("Alertas", alerts.length, "requieren tu atención","bell-ring","destructive")}
+  </div>`;
+  const pendHtml = pend.length? pend.slice(0,5).map(r=>reqRow(r,true)).join("")
+    : `<div style="color:rgb(var(--muted-fg));font-size:14px;padding:18px;border:1px dashed rgb(var(--border));border-radius:12px">No hay solicitudes pendientes. Todo al día.</div>`;
+  const alertHtml = alerts.length? alerts.slice(0,5).map(alertRow).join("")
+    : `<div style="color:rgb(var(--muted-fg));font-size:14px;padding:18px;border:1px dashed rgb(var(--border));border-radius:12px">Sin alertas por ahora.</div>`;
+  return head + cards + `
+    <div class="two" style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 style="font-size:16px;font-weight:700;margin:0">Solicitudes pendientes</h2><button onclick="go('solicitudes')" style="font-size:12.5px;color:rgb(var(--primary));background:none;border:none;cursor:pointer;font-family:inherit">Ver todas</button></div>${pendHtml}</div>
+      <div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 style="font-size:16px;font-weight:700;margin:0">Alertas</h2><button onclick="go('alertas')" style="font-size:12.5px;color:rgb(var(--primary));background:none;border:none;cursor:pointer;font-family:inherit">Ver todas</button></div>${alertHtml}</div>
+    </div>
+    <style>@media(max-width:760px){.two{grid-template-columns:1fr !important}}</style>`;
+}
+
+/* ---- EMPLEADOS ---- */
+function viewEmpleados(){
+  const head=pageHead("Empleados", `${state.employees.length} en total`, btnPrimary("Agregar empleado","openEmpModal()"));
+  if(state.employees.length===0){
+    return head + emptyState("users","Aún no agregás empleados",
+      "Cargá tu equipo con nombre, cédula, puesto, salario y fecha de ingreso. Las vacaciones se calculan solas.",
+      btnPrimary("Agregar empleado","openEmpModal()"));
+  }
+  const rows = state.employees.map(e=>{
+    const bal=vacBalance(e);
+    return `<button onclick="openEmp('${e.id}')" class="rise" style="text-align:left;background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:14px;padding:16px 18px;cursor:pointer;font-family:inherit;color:inherit;display:flex;align-items:center;gap:14px;transition:border-color .15s" onmouseover="this.style.borderColor='rgba(13,148,136,.5)'" onmouseout="this.style.borderColor='rgb(var(--border))'">
+      <span style="width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;background:rgba(13,148,136,.14);color:rgb(var(--primary))">${esc(initials(e.nombre))}</span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.nombre)}</span>
+        <span style="display:block;font-size:12.5px;color:rgb(var(--muted-fg))">${esc(e.puesto||"—")}${e.sucursal? " · "+esc(e.sucursal):""}</span>
+      </span>
+      <span style="text-align:right;flex:none">
+        <span style="display:block;font-size:12px;color:rgb(var(--muted-fg))">Vacaciones</span>
+        <span style="display:block;font-weight:700;font-size:15px" class="mono">${bal.toFixed(1)} d</span>
+      </span>
+      <i data-lucide="chevron-right" style="width:18px;height:18px;color:rgb(var(--muted-fg));flex:none"></i>
+    </button>`;
+  }).join("");
+  return head + `<div style="display:grid;gap:11px">${rows}</div>`;
+}
+function initials(n){ return (n||"?").trim().split(/\s+/).slice(0,2).map(x=>x[0]||"").join("").toUpperCase(); }
+
+/* ---- SOLICITUDES ---- */
+function reqRow(r, compact=false){
+  const e=state.employees.find(x=>x.id===r.empId);
+  const toneMap={Pendiente:"warning",Aprobada:"success",Rechazada:"destructive"};
+  const c={warning:"251,191,36",success:"52,211,153",destructive:"248,113,113"}[toneMap[r.estado]];
+  const acts = r.estado==="Pendiente"? `
+    <div style="display:flex;gap:7px">
+      <button onclick="event.stopPropagation();decideReq('${r.id}','Aprobada')" style="font-size:12px;font-family:inherit;border:1px solid rgba(52,211,153,.4);color:rgb(var(--success));background:rgba(52,211,153,.1);border-radius:8px;padding:6px 11px;cursor:pointer">Aprobar</button>
+      <button onclick="event.stopPropagation();decideReq('${r.id}','Rechazada')" style="font-size:12px;font-family:inherit;border:1px solid rgb(var(--border));color:rgb(var(--muted-fg));background:none;border-radius:8px;padding:6px 11px;cursor:pointer">Rechazar</button>
+    </div>`:`<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgb(${c});background:rgba(${c},.14);border-radius:6px;padding:3px 9px">${r.estado}</span>`;
+  return `<div class="rise" style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:13px;padding:14px 16px;display:flex;align-items:center;gap:13px;margin-bottom:10px">
+    <span style="width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;background:rgba(79,70,229,.12);color:rgb(var(--accent))"><i data-lucide="${r.tipo==='Vacaciones'?'umbrella':r.tipo==='Incapacidad'?'stethoscope':'calendar'}" style="width:17px;height:17px"></i></span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:14px">${esc(e?e.nombre:'(empleado eliminado)')} · <span style="color:rgb(var(--muted-fg))">${r.tipo}</span></div>
+      <div style="font-size:12.5px;color:rgb(var(--muted-fg))">${fmtDate(r.desde)} → ${fmtDate(r.hasta)} · ${r.dias} día(s)${r.nota?` · ${esc(r.nota)}`:""}</div>
+    </div>
+    ${acts}
+  </div>`;
+}
+function viewSolicitudes(){
+  const head=pageHead("Solicitudes", "Vacaciones, permisos e incapacidades",
+    state.employees.length? btnPrimary("Nueva solicitud","openReqModal()"):"");
+  if(state.employees.length===0)
+    return head + emptyState("clipboard-list","Primero agregá empleados","Necesitás al menos un empleado para registrar solicitudes.", btnPrimary("Ir a Empleados","go('empleados')","arrow-right"));
+  if(state.requests.length===0)
+    return head + emptyState("clipboard-list","Sin solicitudes todavía","Registrá la primera solicitud de vacaciones, permiso o incapacidad.", btnPrimary("Nueva solicitud","openReqModal()"));
+  const order={Pendiente:0,Aprobada:1,Rechazada:2};
+  const sorted=[...state.requests].sort((a,b)=> (order[a.estado]-order[b.estado]) || (b.creado||"").localeCompare(a.creado||""));
+  return head + sorted.map(r=>reqRow(r)).join("");
+}
+
+/* ---- AUSENCIAS ---- */
+function viewAusencias(){
+  const head=pageHead("Ausencias", "Faltas, tardías e incapacidades",
+    state.employees.length? btnPrimary("Registrar ausencia","openAbsModal()"):"");
+  if(state.employees.length===0)
+    return head + emptyState("calendar-x","Primero agregá empleados","Necesitás empleados para registrar ausencias.", btnPrimary("Ir a Empleados","go('empleados')","arrow-right"));
+  if(state.absences.length===0)
+    return head + emptyState("calendar-x","Sin ausencias registradas","Llevá el control de faltas, tardías e incapacidades de tu equipo.", btnPrimary("Registrar ausencia","openAbsModal()"));
+  const sorted=[...state.absences].sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  return head + sorted.map(a=>{
+    const e=state.employees.find(x=>x.id===a.empId);
+    const tone={Falta:"248,113,113",Tardía:"251,191,36",Incapacidad:"79,70,229"}[a.tipo]||"151,168,172";
+    return `<div class="rise" style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:13px;padding:14px 16px;display:flex;align-items:center;gap:13px;margin-bottom:10px">
+      <span style="width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;background:rgba(${tone},.13);color:rgb(${tone})"><i data-lucide="${a.tipo==='Incapacidad'?'stethoscope':a.tipo==='Tardía'?'clock':'user-x'}" style="width:17px;height:17px"></i></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">${esc(e?e.nombre:'(eliminado)')} · <span style="color:rgb(var(--muted-fg))">${a.tipo}</span></div>
+        <div style="font-size:12.5px;color:rgb(var(--muted-fg))">${fmtDate(a.fecha)} · ${a.dias||1} día(s)${a.detalle?` · ${esc(a.detalle)}`:""}</div>
+      </div>
+      <button onclick="delAbs('${a.id}')" style="background:none;border:none;color:rgb(var(--muted-fg));cursor:pointer;padding:6px;border-radius:8px"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>
+    </div>`;
+  }).join("");
+}
+
+/* ---- ALERTAS ---- */
+function alertRow(a){
+  const c = a.tone==="primary"?"13,148,136":a.tone==="warning"?"251,191,36":a.tone==="destructive"?"248,113,113":"79,70,229";
+  return `<div class="rise" style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-left:4px solid rgb(${c});border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:12px;margin-bottom:10px">
+    <span style="width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;background:rgba(${c},.13);color:rgb(${c})"><i data-lucide="${a.ico}" style="width:16px;height:16px"></i></span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13.5px">${esc(a.emp.nombre)}</div>
+      <div style="font-size:12.5px;color:rgb(var(--muted-fg))">${a.txt}</div>
+    </div>
+    <button onclick="openEmp('${a.emp.id}')" style="font-size:12px;font-family:inherit;border:1px solid rgb(var(--border));color:rgb(var(--muted-fg));background:none;border-radius:8px;padding:6px 11px;cursor:pointer">Ver</button>
+  </div>`;
+}
+function viewAlertas(){
+  const head=pageHead("Alertas","Vencimientos y avisos automáticos");
+  const a=buildAlerts();
+  if(a.length===0) return head + emptyState("bell-ring","Todo en orden","No hay períodos de prueba por vencer, vacaciones acumuladas ni contratos próximos a terminar.");
+  return head + a.map(alertRow).join("");
+}
+
+/* ============================================================
+   NÓMINA (Ola 2)
+   ============================================================ */
+let nominaPeriod = { mes: todayISO().slice(0,7), tipo:"Mensual", quincena:1 };
+function periodKey(){ return `${nominaPeriod.mes}|${nominaPeriod.tipo}${nominaPeriod.tipo==='Quincenal'?'-Q'+nominaPeriod.quincena:''}`; }
+function periodLabel(){
+  const [y,m]=nominaPeriod.mes.split("-");
+  const meses=["ene","feb","mar","abr","may","jun","jul","ago","set","oct","nov","dic"];
+  const base=`${meses[+m-1]} ${y}`;
+  return nominaPeriod.tipo==='Quincenal'? `${base} · Quincena ${nominaPeriod.quincena}` : `${base} · Mensual`;
+}
+function payAdj(empId){
+  const k=periodKey(); state.payroll[k]=state.payroll[k]||{items:{}};
+  state.payroll[k].items[empId]=state.payroll[k].items[empId]||{extra:0,otras:0};
+  return state.payroll[k].items[empId];
+}
+function calcRow(e){
+  const base = nominaPeriod.tipo==='Mensual'? (e.salario||0) : (e.salario||0)/2;
+  const a=payAdj(e.id);
+  const bruto = base + (Number(a.extra)||0);
+  const obrero = bruto * (state.company.ccssObrero/100);
+  const otras = Number(a.otras)||0;
+  const neto = bruto - obrero - otras;
+  const patrono = bruto * (state.company.ccssPatrono/100);
+  return { base, extra:Number(a.extra)||0, bruto, obrero, otras, neto, patrono };
+}
+function viewNomina(){
+  const head=pageHead("Nómina", "Planilla, cargas sociales y aguinaldo · Costa Rica",
+    state.employees.length? `<div style="display:flex;gap:9px;flex-wrap:wrap">
+      <button onclick="openAguinaldo()" style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:11px;padding:11px 15px;font-family:inherit;font-weight:600;font-size:13.5px;cursor:pointer"><i data-lucide="gift" style="width:16px;height:16px"></i>Aguinaldo</button>
+      ${btnPrimary("Imprimir planilla","printPlanilla()","printer")}
+    </div>`:"");
+  if(state.employees.length===0)
+    return head + emptyState("banknote","Primero agregá empleados","La planilla se arma con los empleados y sus salarios. Agregá a tu equipo para empezar.", btnPrimary("Ir a Empleados","go('empleados')","arrow-right"));
+
+  const sel=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:20px;background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:14px;padding:14px 16px">
+    <div class="field" style="margin:0"><label>Mes</label><input type="month" value="${nominaPeriod.mes}" onchange="setPeriod('mes',this.value)"></div>
+    <div class="field" style="margin:0"><label>Tipo</label><select onchange="setPeriod('tipo',this.value)">
+      <option ${nominaPeriod.tipo==='Mensual'?'selected':''}>Mensual</option>
+      <option ${nominaPeriod.tipo==='Quincenal'?'selected':''}>Quincenal</option></select></div>
+    ${nominaPeriod.tipo==='Quincenal'?`<div class="field" style="margin:0"><label>Quincena</label><select onchange="setPeriod('quincena',this.value)">
+      <option value="1" ${nominaPeriod.quincena==1?'selected':''}>Primera</option>
+      <option value="2" ${nominaPeriod.quincena==2?'selected':''}>Segunda</option></select></div>`:""}
+    <div style="margin-left:auto;font-size:13px;color:rgb(var(--muted-fg));align-self:center">Período: <b style="color:rgb(var(--fg))">${periodLabel()}</b></div>
+  </div>`;
+
+  let tB=0,tO=0,tN=0,tP=0;
+  state.employees.forEach(e=>{const c=calcRow(e); tB+=c.bruto; tO+=c.obrero; tN+=c.neto; tP+=c.patrono;});
+  const tot=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:13px;margin-bottom:20px">
+    ${statCard("Bruto total", fmtMoney(tB), `${state.employees.length} empleados`,"wallet","primary")}
+    ${statCard("CCSS obrero", fmtMoney(tO), `${state.company.ccssObrero}% deducido`,"minus-circle","accent")}
+    ${statCard("Neto a pagar", fmtMoney(tN), "líquido al equipo","banknote","primary")}
+    ${statCard("Carga patronal", fmtMoney(tP), `${state.company.ccssPatrono}% a tu cargo`,"building-2","warning")}
+  </div>`;
+
+  const rows=state.employees.map(e=>{
+    const c=calcRow(e);
+    return `<tr style="border-top:1px solid rgb(var(--border))">
+      <td style="padding:11px 12px"><div style="font-weight:600">${esc(e.nombre)}</div><div style="font-size:12px;color:rgb(var(--muted-fg))">${esc(e.puesto||'—')}</div></td>
+      <td style="padding:11px 12px;text-align:right" class="mono">${fmtMoney(c.base)}</td>
+      <td style="padding:6px 10px;text-align:right"><input type="number" value="${c.extra}" onchange="updPlanilla('${e.id}','extra',this.value)" style="width:96px;text-align:right;background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:8px;color:rgb(var(--fg));padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:13px"></td>
+      <td style="padding:11px 12px;text-align:right;color:rgb(var(--destructive))" class="mono">−${fmtMoney(c.obrero)}</td>
+      <td style="padding:6px 10px;text-align:right"><input type="number" value="${c.otras}" onchange="updPlanilla('${e.id}','otras',this.value)" style="width:96px;text-align:right;background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:8px;color:rgb(var(--fg));padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:13px"></td>
+      <td style="padding:11px 12px;text-align:right;font-weight:700" class="mono">${fmtMoney(c.neto)}</td>
+      <td style="padding:11px 8px;text-align:center"><button onclick="openColilla('${e.id}')" title="Ver colilla" style="background:none;border:1px solid rgb(var(--border));color:rgb(var(--muted-fg));border-radius:8px;padding:6px 8px;cursor:pointer"><i data-lucide="receipt" style="width:15px;height:15px"></i></button></td>
+    </tr>`;
+  }).join("");
+  const table=`<div style="overflow-x:auto;background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:14px">
+    <table style="width:100%;border-collapse:collapse;min-width:760px;font-size:13.5px">
+      <thead><tr style="text-align:left;color:rgb(var(--muted-fg));font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+        <th style="padding:13px 12px;font-weight:600">Empleado</th>
+        <th style="padding:13px 12px;font-weight:600;text-align:right">Salario base</th>
+        <th style="padding:13px 12px;font-weight:600;text-align:right">Horas extra (₡)</th>
+        <th style="padding:13px 12px;font-weight:600;text-align:right">CCSS obrero</th>
+        <th style="padding:13px 12px;font-weight:600;text-align:right">Otras deduc.</th>
+        <th style="padding:13px 12px;font-weight:600;text-align:right">Neto</th>
+        <th style="padding:13px 8px;font-weight:600;text-align:center">Colilla</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p style="font-size:12px;color:rgb(var(--muted-fg));margin-top:12px">Las horas extra y otras deducciones se ingresan por período y se guardan solas. La carga patronal (${state.company.ccssPatrono}%) es adicional al neto y la asume la empresa. Configurá los porcentajes de la CCSS en Ajustes.</p>`;
+  return head + sel + tot + table;
+}
+function setPeriod(k,v){ if(k==='quincena') v=Number(v); nominaPeriod[k]=v; render(); }
+function updPlanilla(empId,field,val){ payAdj(empId)[field]=Number(val)||0; save(); render(); }
+
+function colillaHTML(e){
+  const c=calcRow(e);
+  const line=(l,v,neg)=>`<tr><td style="padding:7px 0;color:#444">${l}</td><td style="padding:7px 0;text-align:right;font-family:monospace">${neg?'−':''}${fmtMoney(v)}</td></tr>`;
+  return `<div style="font-family:Poppins,Arial,sans-serif;max-width:460px;color:#111">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:14px">
+      <div><div style="font-weight:800;font-size:18px">${esc(state.company.nombre||'Mi empresa')}</div><div style="font-size:12px;color:#666">Colilla de pago · ${periodLabel()}</div></div>
+      <div style="font-weight:800;color:#0d9488;text-align:right">Centralia<br>Personas</div>
+    </div>
+    <div style="font-size:13px;margin-bottom:10px"><b>${esc(e.nombre)}</b> · ${esc(e.puesto||'—')}${e.cedula?` · Céd. ${esc(e.cedula)}`:''}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      ${line("Salario base",c.base)}
+      ${c.extra?line("Horas extra",c.extra):""}
+      <tr><td style="padding:7px 0;font-weight:700;border-top:1px solid #ddd">Salario bruto</td><td style="padding:7px 0;text-align:right;font-weight:700;border-top:1px solid #ddd;font-family:monospace">${fmtMoney(c.bruto)}</td></tr>
+      ${line(`CCSS obrero (${state.company.ccssObrero}%)`,c.obrero,true)}
+      ${c.otras?line("Otras deducciones",c.otras,true):""}
+      <tr><td style="padding:9px 0;font-weight:800;border-top:2px solid #0d9488">Neto a pagar</td><td style="padding:9px 0;text-align:right;font-weight:800;border-top:2px solid #0d9488;font-family:monospace;color:#0d9488">${fmtMoney(c.neto)}</td></tr>
+    </table>
+    <div style="font-size:11px;color:#888;margin-top:14px">Carga patronal CCSS (${state.company.ccssPatrono}%): ${fmtMoney(c.patrono)} — asumida por la empresa, no se deduce del salario.</div>
+  </div>`;
+}
+function openColilla(id){
+  const e=state.employees.find(x=>x.id===id); if(!e) return;
+  openDrawer(`<div style="padding:20px 22px;border-bottom:1px solid rgb(var(--border));display:flex;align-items:center;justify-content:space-between">
+      <h3 style="font-size:18px;font-weight:700;margin:0">Colilla de pago</h3>
+      <button onclick="closeAll()" style="background:none;border:none;color:rgb(var(--muted-fg));font-size:20px;cursor:pointer">✕</button></div>
+    <div style="padding:22px;overflow-y:auto;flex:1;background:rgb(var(--muted))">
+      <div style="background:#fff;border-radius:12px;padding:22px">${colillaHTML(e)}</div>
+    </div>
+    <div style="padding:16px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="printColilla('${e.id}')" class="brand-grad" style="display:inline-flex;align-items:center;gap:7px;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:600;cursor:pointer"><i data-lucide="printer" style="width:16px;height:16px"></i>Imprimir / PDF</button>
+    </div>`);
+}
+function printWindow(inner,title){
+  const w=window.open("","_blank","width=720,height=900");
+  if(!w){ toast("Permití las ventanas emergentes para imprimir"); return; }
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet"></head><body style="margin:0;padding:28px;background:#fff">'+inner+'</body></html>');
+  w.document.close(); setTimeout(()=>{ w.focus(); w.print(); }, 400);
+}
+function printColilla(id){ const e=state.employees.find(x=>x.id===id); if(e) printWindow(colillaHTML(e),"Colilla "+e.nombre); }
+function printPlanilla(){
+  let tB=0,tO=0,tN=0,tP=0;
+  const rows=state.employees.map(e=>{const c=calcRow(e);tB+=c.bruto;tO+=c.obrero;tN+=c.neto;tP+=c.patrono;
+    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${esc(e.nombre)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmtMoney(c.bruto)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">−${fmtMoney(c.obrero)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmtMoney(c.otras)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace;font-weight:700">${fmtMoney(c.neto)}</td></tr>`;}).join("");
+  const inner=`<div style="font-family:Poppins,Arial,sans-serif;color:#111">
+    <div style="display:flex;justify-content:space-between;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:14px">
+      <div><div style="font-weight:800;font-size:18px">${esc(state.company.nombre||'Mi empresa')}</div><div style="font-size:12px;color:#666">Planilla · ${periodLabel()}</div></div>
+      <div style="font-weight:800;color:#0d9488;text-align:right">Centralia<br>Personas</div></div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr style="background:#f3f7f6"><th style="padding:7px 8px;text-align:left">Empleado</th><th style="padding:7px 8px;text-align:right">Bruto</th><th style="padding:7px 8px;text-align:right">CCSS</th><th style="padding:7px 8px;text-align:right">Otras</th><th style="padding:7px 8px;text-align:right">Neto</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:800;border-top:2px solid #0d9488"><td style="padding:8px">Totales</td><td style="padding:8px;text-align:right;font-family:monospace">${fmtMoney(tB)}</td><td style="padding:8px;text-align:right;font-family:monospace">−${fmtMoney(tO)}</td><td></td><td style="padding:8px;text-align:right;font-family:monospace;color:#0d9488">${fmtMoney(tN)}</td></tr></tfoot>
+    </table>
+    <div style="font-size:11px;color:#888;margin-top:12px">Carga patronal CCSS total (${state.company.ccssPatrono}%): ${fmtMoney(tP)} — asumida por la empresa.</div></div>`;
+  printWindow(inner,"Planilla "+periodLabel());
+}
+
+function aguinaldoDe(e){
+  if(!e.ingreso||!e.salario) return 0;
+  const Y=new Date(todayISO()+"T00:00:00").getFullYear();
+  const cycleStart=`${Y-1}-12-01`, cycleEnd=`${Y}-11-30`;
+  const t=todayISO();
+  if(t<cycleStart) return 0;
+  const ini = e.ingreso>cycleStart? e.ingreso : cycleStart;
+  const fin = t<cycleEnd? t : cycleEnd;
+  const dias = Math.max(0, daysBetween(ini,fin));
+  const meses = Math.min(12, dias/30.42);
+  return (e.salario*meses)/12;
+}
+function openAguinaldo(){
+  const Y=new Date(todayISO()+"T00:00:00").getFullYear();
+  const rows=state.employees.map(e=>`<tr style="border-top:1px solid rgb(var(--border))">
+    <td style="padding:10px 12px">${esc(e.nombre)}</td>
+    <td style="padding:10px 12px;text-align:right" class="mono">${e.salario?fmtMoney(e.salario):'—'}</td>
+    <td style="padding:10px 12px;text-align:right;font-weight:700" class="mono">${fmtMoney(aguinaldoDe(e))}</td></tr>`).join("");
+  const tot=state.employees.reduce((s,e)=>s+aguinaldoDe(e),0);
+  openModal(modalHead("Aguinaldo proyectado")+`
+    <div style="padding:18px 22px;overflow-y:auto">
+      <p style="font-size:13px;color:rgb(var(--muted-fg));margin:0 0 14px">Proyección del ciclo dic ${Y-1} – nov ${Y}, a pagar antes del 20 de diciembre. Es el promedio del salario ordinario del ciclo, proporcional al tiempo trabajado.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+        <thead><tr style="color:rgb(var(--muted-fg));font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left"><th style="padding:8px 12px;font-weight:600">Empleado</th><th style="padding:8px 12px;font-weight:600;text-align:right">Salario</th><th style="padding:8px 12px;font-weight:600;text-align:right">Aguinaldo</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:2px solid rgb(var(--primary));font-weight:800"><td style="padding:11px 12px">Total</td><td></td><td style="padding:11px 12px;text-align:right" class="mono text-grad">${fmtMoney(tot)}</td></tr></tfoot>
+      </table>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end"><button onclick="closeAll()" style="border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px 16px;font-family:inherit;font-weight:600;cursor:pointer">Cerrar</button></div>`);
+}
+
+function cesantiaDays(years){
+  const table=[19.5,20,20.5,21,21.24,21.5,22,22]; // año 1..8 (días por ese año), tope 8 años
+  const y=Math.min(Math.floor(years),8); let d=0;
+  for(let i=0;i<y;i++) d+=table[i];
+  return d;
+}
+function openLiquidacion(id){
+  const e=state.employees.find(x=>x.id===id); if(!e) return;
+  openModal(modalHead("Calcular liquidación")+`
+    <div style="padding:20px 22px;overflow-y:auto">
+      <div style="font-size:13px;color:rgb(var(--muted-fg));margin-bottom:14px">${esc(e.nombre)} · ingreso ${fmtDate(e.ingreso)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Fecha de salida</label><input id="l_fecha" type="date" value="${todayISO()}" onchange="calcLiq('${e.id}')"></div>
+        <div class="field"><label>Causa</label><select id="l_causa" onchange="calcLiq('${e.id}')">
+          <option>Despido con responsabilidad patronal</option>
+          <option>Renuncia</option></select></div>
+      </div>
+      <div id="l_out" style="margin-top:8px"></div>
+      <p style="font-size:11.5px;color:rgb(var(--muted-fg));margin-top:14px">Estimación según el Código de Trabajo de Costa Rica (cesantía con tope de 8 años). Validá el cálculo con tu asesor laboral antes de pagar.</p>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="closeAll()" style="border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px 16px;font-family:inherit;font-weight:600;cursor:pointer">Cerrar</button>
+    </div>`);
+  calcLiq(id);
+}
+function calcLiq(id){
+  const e=state.employees.find(x=>x.id===id); if(!e) return;
+  const fecha=document.getElementById("l_fecha").value||todayISO();
+  const causa=document.getElementById("l_causa").value;
+  const dias=Math.max(0,daysBetween(e.ingreso,fecha));
+  const years=dias/365;
+  const sal=e.salario||0;
+  const diario=sal/30;
+  const accruedAt=(dias/365)*VAC_ANUAL;
+  const balVac=Math.max(0, accruedAt - vacTaken(e));
+  const vacMonto=balVac*diario;
+  const Y=new Date(fecha+"T00:00:00").getFullYear();
+  const cycleStart = (fecha>=`${Y}-12-01`)? `${Y}-12-01` : `${Y-1}-12-01`;
+  const iniA=e.ingreso>cycleStart?e.ingreso:cycleStart;
+  const mesesA=Math.min(12, Math.max(0,daysBetween(iniA,fecha))/30.42);
+  const aguMonto=(sal*mesesA)/12;
+  let preDias= years>=1?30: years>=0.5?15: years>=0.25?7:0;
+  const preMonto=preDias*diario;
+  let cesMonto=0, cesDias=0;
+  if(causa.indexOf("Despido")===0 && years>=0.25){ cesDias=cesantiaDays(years); cesMonto=cesDias*diario; }
+  const rowL=(l,v,sub)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgb(var(--border))"><span style="font-size:13.5px">${l}${sub?`<br><span style='font-size:11.5px;color:rgb(var(--muted-fg))'>${sub}</span>`:''}</span><span class="mono" style="font-weight:600;text-align:right">${fmtMoney(v)}</span></div>`;
+  const total=vacMonto+aguMonto+preMonto+cesMonto;
+  document.getElementById("l_out").innerHTML=
+    '<div style="background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:12px;padding:6px 16px;margin-top:6px">'+
+      '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:12.5px;color:rgb(var(--muted-fg))"><span>Antig&uuml;edad</span><span>'+years.toFixed(2)+' a&ntilde;os &middot; diario '+fmtMoney(diario)+'</span></div>'+
+      rowL("Vacaciones pendientes", vacMonto, balVac.toFixed(1)+" d&iacute;as")+
+      rowL("Aguinaldo proporcional", aguMonto, mesesA.toFixed(1)+" meses del ciclo")+
+      rowL("Preaviso", preMonto, preDias+" d&iacute;as")+
+      rowL("Auxilio de cesant&iacute;a", cesMonto, causa.indexOf("Despido")===0? cesDias.toFixed(1)+" d&iacute;as":"no aplica en renuncia")+
+      '<div style="display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:2px solid rgb(var(--primary))"><span style="font-weight:800">Total estimado</span><span class="mono text-grad" style="font-weight:800;font-size:17px">'+fmtMoney(total)+'</span></div>'+
+    '</div>';
+}
+
+/* ---- AJUSTES ---- */
+function viewAjustes(){
+  return pageHead("Ajustes","Configuraci&oacute;n de tu empresa") + `
+    <div style="max-width:520px;background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:16px;padding:22px">
+      <div class="field" style="margin-bottom:16px"><label>Nombre de la empresa</label><input id="setNombre" value="${esc(state.company.nombre)}" placeholder="Mi empresa S.A."></div>
+      <div style="font-weight:700;font-size:14px;margin:6px 0 4px">Cargas sociales CCSS</div>
+      <p style="font-size:12.5px;color:rgb(var(--muted-fg));margin:0 0 12px">Porcentajes vigentes. Referencia 2025: obrero 10,67% / patrono 26,67%. En 2026 suben a 10,83% / 26,83%.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div class="field" style="margin:0"><label>Obrero (%)</label><input id="setObrero" type="number" step="0.01" value="${state.company.ccssObrero}"></div>
+        <div class="field" style="margin:0"><label>Patrono (%)</label><input id="setPatrono" type="number" step="0.01" value="${state.company.ccssPatrono}"></div>
+      </div>
+      <button onclick="saveAjustes()" class="brand-grad" style="color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:600;cursor:pointer">Guardar</button>
+    </div>
+    <div style="max-width:520px;margin-top:18px;background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:16px;padding:22px">
+      <div style="font-weight:700;margin-bottom:4px">Datos</div>
+      <p style="font-size:13px;color:rgb(var(--muted-fg));margin:0 0 14px">Tus datos se guardan en este navegador. Exportalos para respaldarlos, importá un respaldo o borrá todo.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="exportData()" style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px 14px;font-family:inherit;font-weight:600;cursor:pointer"><i data-lucide="download" style="width:15px;height:15px"></i>Exportar JSON</button>
+        <button onclick="document.getElementById('importFile').click()" style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px 14px;font-family:inherit;font-weight:600;cursor:pointer"><i data-lucide="upload" style="width:15px;height:15px"></i>Importar JSON</button>
+        <button onclick="resetData()" style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(248,113,113,.4);background:rgba(248,113,113,.08);color:rgb(var(--destructive));border-radius:10px;padding:9px 14px;font-family:inherit;font-weight:600;cursor:pointer"><i data-lucide="trash-2" style="width:15px;height:15px"></i>Borrar todo</button>
+      </div>
+      <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importData(this)">
+    </div>`;
+}
+function saveAjustes(){
+  state.company.nombre=document.getElementById("setNombre").value.trim();
+  const o=parseFloat(document.getElementById("setObrero").value), p=parseFloat(document.getElementById("setPatrono").value);
+  if(!isNaN(o)) state.company.ccssObrero=o;
+  if(!isNaN(p)) state.company.ccssPatrono=p;
+  save(); toast("Ajustes guardados"); renderNav();
+}
+
+/* ============================================================
+   MODALES Y DRAWER
+   ============================================================ */
+function openModal(html){ document.getElementById("modalBox").innerHTML=html; document.getElementById("modal").classList.add("open"); document.getElementById("scrim").classList.add("open"); icons(); }
+function openDrawer(html){ document.getElementById("drawerBox").innerHTML=html; document.getElementById("drawer").classList.add("open"); document.getElementById("scrim").classList.add("open"); icons(); }
+function closeAll(){ document.getElementById("modal").classList.remove("open"); document.getElementById("drawer").classList.remove("open"); document.getElementById("scrim").classList.remove("open"); }
+function modalHead(title){ return `<div style="padding:18px 22px;border-bottom:1px solid rgb(var(--border));display:flex;align-items:center;justify-content:space-between"><h3 style="font-size:18px;font-weight:700;margin:0">${title}</h3><button onclick="closeAll()" style="background:none;border:none;color:rgb(var(--muted-fg));font-size:20px;cursor:pointer;line-height:1">&times;</button></div>`; }
+
+/* ---- empleado: crear / editar ---- */
+function openEmpModal(id){
+  const e = id? state.employees.find(x=>x.id===id) : {};
+  const t = id? "Editar empleado":"Agregar empleado";
+  openModal(modalHead(t)+`
+    <div style="padding:20px 22px;overflow-y:auto">
+      <div class="field" style="margin-bottom:14px"><label>Nombre completo *</label><input id="e_nombre" value="${esc(e.nombre||'')}" placeholder="Ej: María Fernández Rojas"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Cédula</label><input id="e_cedula" value="${esc(e.cedula||'')}" placeholder="1-2345-6789"></div>
+        <div class="field"><label>Puesto</label><input id="e_puesto" value="${esc(e.puesto||'')}" placeholder="Cajera"></div>
+        <div class="field"><label>Sucursal / área</label><input id="e_sucursal" value="${esc(e.sucursal||'')}" placeholder="Sucursal Centro"></div>
+        <div class="field"><label>Salario bruto mensual (₡)</label><input id="e_salario" type="number" value="${e.salario||''}" placeholder="485000"></div>
+        <div class="field"><label>Fecha de ingreso *</label><input id="e_ingreso" type="date" value="${e.ingreso||''}"></div>
+        <div class="field"><label>Jornada</label><select id="e_jornada">
+          ${["Tiempo completo","Medio tiempo","Por horas"].map(o=>`<option ${e.jornada===o?'selected':''}>${o}</option>`).join("")}
+        </select></div>
+        <div class="field"><label>Tipo de contrato</label><select id="e_contrato" onchange="document.getElementById('e_finWrap').style.display=this.value==='Plazo fijo'?'block':'none'">
+          ${["Indefinido","Plazo fijo"].map(o=>`<option ${e.contrato===o?'selected':''}>${o}</option>`).join("")}
+        </select></div>
+        <div class="field" id="e_finWrap" style="display:${e.contrato==='Plazo fijo'?'block':'none'}"><label>Fin de contrato</label><input id="e_contratoFin" type="date" value="${e.contratoFin||''}"></div>
+      </div>
+    </div>
+    <div style="padding:16px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="closeAll()" style="border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:600;cursor:pointer">Cancelar</button>
+      <button onclick="saveEmp('${id||''}')" class="brand-grad" style="color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:600;cursor:pointer">Guardar</button>
+    </div>`);
+}
+function saveEmp(id){
+  const g=x=>document.getElementById(x).value;
+  const nombre=g("e_nombre").trim(), ingreso=g("e_ingreso");
+  if(!nombre){ toast("Poné el nombre del empleado"); return; }
+  if(!ingreso){ toast("Poné la fecha de ingreso"); return; }
+  const data={ nombre, cedula:g("e_cedula").trim(), puesto:g("e_puesto").trim(), sucursal:g("e_sucursal").trim(),
+    salario:Number(g("e_salario"))||0, ingreso, jornada:g("e_jornada"), contrato:g("e_contrato"),
+    contratoFin: g("e_contrato")==="Plazo fijo"? g("e_contratoFin"):"" };
+  if(id){ const e=state.employees.find(x=>x.id===id); Object.assign(e,data); toast("Empleado actualizado"); }
+  else { state.employees.push({id:uid(),...data}); toast("Empleado agregado"); }
+  save(); closeAll(); renderNav(); render();
+}
+
+/* ---- expediente (drawer) ---- */
+function openEmp(id){
+  const e=state.employees.find(x=>x.id===id); if(!e) return;
+  const acc=vacAccrued(e), tak=vacTaken(e), bal=acc-tak;
+  const antig = e.ingreso? (daysBetween(e.ingreso,todayISO())/365):0;
+  const reqs=state.requests.filter(r=>r.empId===id);
+  const abs=state.absences.filter(a=>a.empId===id);
+  openDrawer(`
+    <div style="padding:20px 22px;border-bottom:1px solid rgb(var(--border));display:flex;align-items:flex-start;gap:14px">
+      <span style="width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:17px;background:rgba(13,148,136,.14);color:rgb(var(--primary))">${esc(initials(e.nombre))}</span>
+      <div style="flex:1;min-width:0">
+        <h3 style="font-size:19px;font-weight:700;margin:0">${esc(e.nombre)}</h3>
+        <div style="font-size:13px;color:rgb(var(--muted-fg))">${esc(e.puesto||"—")}${e.sucursal? " · "+esc(e.sucursal):""}</div>
+      </div>
+      <button onclick="closeAll()" style="background:none;border:none;color:rgb(var(--muted-fg));font-size:20px;cursor:pointer">&times;</button>
+    </div>
+    <div style="padding:20px 22px;overflow-y:auto;flex:1">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+        <div style="background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:12px;padding:12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:rgb(var(--muted-fg))">Vacaciones disp.</div><div style="font-size:20px;font-weight:800" class="mono">${bal.toFixed(1)}</div></div>
+        <div style="background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:12px;padding:12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:rgb(var(--muted-fg))">Acumuladas</div><div style="font-size:20px;font-weight:800" class="mono">${acc.toFixed(1)}</div></div>
+        <div style="background:rgb(var(--muted));border:1px solid rgb(var(--border));border-radius:12px;padding:12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:rgb(var(--muted-fg))">Tomadas</div><div style="font-size:20px;font-weight:800" class="mono">${tak.toFixed(1)}</div></div>
+      </div>
+      <div style="background:rgb(var(--card));border:1px solid rgb(var(--border));border-radius:13px;padding:4px 16px;margin-bottom:18px">
+        ${dataRow("Cédula", e.cedula||"—")}
+        ${dataRow("Salario bruto", e.salario? fmtMoney(e.salario):"—")}
+        ${dataRow("Ingreso", fmtDate(e.ingreso)+` · ${antig.toFixed(1)} año(s)`)}
+        ${dataRow("Jornada", e.jornada||"—")}
+        ${dataRow("Contrato", (e.contrato||"—")+(e.contratoFin? " · hasta "+fmtDate(e.contratoFin):""))}
+      </div>
+      <div style="display:flex;gap:9px;margin-bottom:12px">
+        <button onclick="openReqModal('${e.id}')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer"><i data-lucide="umbrella" style="width:15px;height:15px"></i>Solicitud</button>
+        <button onclick="openEmpModal('${e.id}')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:9px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer"><i data-lucide="pencil" style="width:15px;height:15px"></i>Editar</button>
+        <button onclick="delEmp('${e.id}')" style="display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(248,113,113,.4);background:rgba(248,113,113,.08);color:rgb(var(--destructive));border-radius:10px;padding:9px 12px;cursor:pointer"><i data-lucide="trash-2" style="width:15px;height:15px"></i></button>
+      </div>
+      <button onclick="openLiquidacion('${e.id}')" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:10px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;margin-bottom:20px"><i data-lucide="calculator" style="width:15px;height:15px"></i>Calcular liquidación</button>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgb(var(--muted-fg));margin-bottom:8px">Historial</div>
+      ${(reqs.length||abs.length)? "" : `<div style="font-size:13px;color:rgb(var(--muted-fg))">Sin movimientos todavía.</div>`}
+      ${reqs.map(r=>`<div style="font-size:13px;padding:8px 0;border-bottom:1px solid rgb(var(--border))">📋 ${r.tipo} · ${fmtDate(r.desde)} → ${fmtDate(r.hasta)} · <b>${r.estado}</b></div>`).join("")}
+      ${abs.map(a=>`<div style="font-size:13px;padding:8px 0;border-bottom:1px solid rgb(var(--border))">📅 ${a.tipo} · ${fmtDate(a.fecha)} · ${a.dias||1} día(s)</div>`).join("")}
+    </div>`);
+}
+function dataRow(k,v){ return `<div style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid rgb(var(--border))"><span style="font-size:13px;color:rgb(var(--muted-fg))">${k}</span><span style="font-size:13px;font-weight:600;text-align:right">${esc(v)}</span></div>`; }
+function delEmp(id){
+  if(!confirm("¿Eliminar este empleado y sus registros? No se puede deshacer.")) return;
+  state.employees=state.employees.filter(e=>e.id!==id);
+  state.requests=state.requests.filter(r=>r.empId!==id);
+  state.absences=state.absences.filter(a=>a.empId!==id);
+  save(); closeAll(); renderNav(); render(); toast("Empleado eliminado");
+}
+
+/* ---- solicitud ---- */
+function openReqModal(empId){
+  if(state.employees.length===0){ toast("Primero agregá un empleado"); return; }
+  const opts=state.employees.map(e=>`<option value="${e.id}" ${e.id===empId?'selected':''}>${esc(e.nombre)}</option>`).join("");
+  openModal(modalHead("Nueva solicitud")+`
+    <div style="padding:20px 22px">
+      <div class="field" style="margin-bottom:14px"><label>Empleado *</label><select id="r_emp" onchange="recalcReqDias()">${opts}</select></div>
+      <div class="field" style="margin-bottom:14px"><label>Tipo *</label><select id="r_tipo" onchange="recalcReqDias()">
+        ${["Vacaciones","Permiso","Incapacidad"].map(o=>`<option>${o}</option>`).join("")}
+      </select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Desde *</label><input id="r_desde" type="date" value="${todayISO()}" onchange="recalcReqDias()"></div>
+        <div class="field"><label>Hasta *</label><input id="r_hasta" type="date" value="${todayISO()}" onchange="recalcReqDias()"></div>
+      </div>
+      <div class="field" style="margin-bottom:6px"><label>Días</label><input id="r_dias" type="number" step="0.5" value="1"></div>
+      <div id="r_balHint" style="font-size:12.5px;color:rgb(var(--muted-fg));margin-bottom:14px"></div>
+      <div class="field"><label>Nota (opcional)</label><input id="r_nota" placeholder="Motivo o detalle"></div>
+    </div>
+    <div style="padding:16px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="closeAll()" style="border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:600;cursor:pointer">Cancelar</button>
+      <button onclick="saveReq()" class="brand-grad" style="color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:600;cursor:pointer">Registrar</button>
+    </div>`);
+  recalcReqDias();
+}
+function recalcReqDias(){
+  const desde=document.getElementById("r_desde").value, hasta=document.getElementById("r_hasta").value;
+  const dias=inclusiveDays(desde,hasta);
+  if(dias>0) document.getElementById("r_dias").value=dias;
+  const tipo=document.getElementById("r_tipo").value;
+  const emp=state.employees.find(e=>e.id===document.getElementById("r_emp").value);
+  const hint=document.getElementById("r_balHint");
+  if(tipo==="Vacaciones" && emp) hint.innerHTML=`Saldo de vacaciones de ${esc(emp.nombre)}: <b class="mono">${vacBalance(emp).toFixed(1)} días</b>`;
+  else hint.innerHTML="";
+}
+function saveReq(){
+  const empId=document.getElementById("r_emp").value;
+  const tipo=document.getElementById("r_tipo").value;
+  const desde=document.getElementById("r_desde").value, hasta=document.getElementById("r_hasta").value;
+  const dias=Number(document.getElementById("r_dias").value)||0;
+  if(!desde||!hasta){ toast("Poné las fechas"); return; }
+  if(daysBetween(desde,hasta)<0){ toast("La fecha 'hasta' no puede ser antes de 'desde'"); return; }
+  if(dias<=0){ toast("Los días deben ser mayor a 0"); return; }
+  state.requests.push({id:uid(),empId,tipo,desde,hasta,dias,estado:"Pendiente",nota:document.getElementById("r_nota").value.trim(),creado:new Date().toISOString()});
+  save(); closeAll(); renderNav(); render(); toast("Solicitud registrada");
+}
+function decideReq(id,estado){
+  const r=state.requests.find(x=>x.id===id); if(!r) return;
+  if(estado==="Aprobada" && r.tipo==="Vacaciones"){
+    const emp=state.employees.find(e=>e.id===r.empId);
+    if(emp && (vacBalance(emp) - r.dias) < 0){
+      if(!confirm(`${emp.nombre} no tiene saldo suficiente de vacaciones (quedaría en negativo). ¿Aprobar de todos modos?`)) return;
+    }
+  }
+  r.estado=estado; save(); renderNav(); render();
+  toast(estado==="Aprobada"?"Solicitud aprobada":"Solicitud rechazada");
+}
+
+/* ---- ausencia ---- */
+function openAbsModal(){
+  if(state.employees.length===0){ toast("Primero agregá un empleado"); return; }
+  const opts=state.employees.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
+  openModal(modalHead("Registrar ausencia")+`
+    <div style="padding:20px 22px">
+      <div class="field" style="margin-bottom:14px"><label>Empleado *</label><select id="a_emp">${opts}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Tipo *</label><select id="a_tipo">${["Falta","Tardía","Incapacidad"].map(o=>`<option>${o}</option>`).join("")}</select></div>
+        <div class="field"><label>Fecha *</label><input id="a_fecha" type="date" value="${todayISO()}"></div>
+        <div class="field"><label>Días</label><input id="a_dias" type="number" step="0.5" value="1"></div>
+      </div>
+      <div class="field"><label>Detalle (opcional)</label><input id="a_detalle" placeholder="Ej: incapacidad CCSS, llegó 30 min tarde…"></div>
+    </div>
+    <div style="padding:16px 22px;border-top:1px solid rgb(var(--border));display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="closeAll()" style="border:1px solid rgb(var(--border));background:none;color:rgb(var(--fg));border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:600;cursor:pointer">Cancelar</button>
+      <button onclick="saveAbs()" class="brand-grad" style="color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:600;cursor:pointer">Registrar</button>
+    </div>`);
+}
+function saveAbs(){
+  const empId=document.getElementById("a_emp").value;
+  const fecha=document.getElementById("a_fecha").value;
+  if(!fecha){ toast("Poné la fecha"); return; }
+  state.absences.push({id:uid(),empId,tipo:document.getElementById("a_tipo").value,fecha,dias:Number(document.getElementById("a_dias").value)||1,detalle:document.getElementById("a_detalle").value.trim()});
+  save(); closeAll(); renderNav(); render(); toast("Ausencia registrada");
+}
+function delAbs(id){ state.absences=state.absences.filter(a=>a.id!==id); save(); render(); toast("Ausencia eliminada"); }
+
+/* ---- datos ---- */
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="centralia-personas-"+todayISO()+".json"; a.click();
+  toast("Datos exportados");
+}
+function importData(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const data=JSON.parse(rd.result); if(!data||!Array.isArray(data.employees)) throw 0;
+    state=normalize(data); save(); renderNav(); render(); toast("Datos importados");
+  }catch(e){ toast("Archivo inválido"); } input.value=""; };
+  rd.readAsText(f);
+}
+function resetData(){
+  if(!confirm("Esto borra TODOS los empleados, solicitudes y ausencias. ¿Continuar?")) return;
+  state={ company:{nombre:"", ccssObrero:10.67, ccssPatrono:26.67}, employees:[], requests:[], absences:[], payroll:{} };
+  save(); renderNav(); render(); toast("Datos borrados");
+}
+
+/* ---- tema ---- */
+function applyTheme(t){ document.documentElement.setAttribute("data-theme",t); const dark=t==="dark"; const el=document.getElementById("themeIco"); if(el) el.setAttribute("data-lucide",dark?"moon":"sun"); const lbl=document.getElementById("themeLbl"); if(lbl) lbl.textContent=dark?"Modo claro":"Modo oscuro"; }
+function toggleTheme(){ const c=document.documentElement.getAttribute("data-theme"); const n=c==="dark"?"light":"dark"; localStorage.setItem("cc_theme",n); applyTheme(n); icons(); }
+
+/* ---- helpers UI ---- */
+let toastT;
+function toast(msg){ const el=document.getElementById("toast"); el.textContent=msg; el.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("show"),2200); }
+function icons(){ if(window.lucide) lucide.createIcons(); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeAll(); });
+
+/* ---- init ---- */
+applyTheme(localStorage.getItem("cc_theme")||"dark");
+renderNav();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Centralia Personas — Roadmap y conexión de módulos</title>
+<style>
+  :root{
+    --navy:#0E2A3B; --teal:#028090; --sea:#00A896; --mint:#02C39A;
+    --ink:#14323F; --grey:#5B6B73; --light:#EAF4F4; --line:#D6E6E6; --bg:#F6FAFA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Calibri,system-ui,sans-serif;background:var(--bg);color:var(--ink);
+       padding:40px 32px 60px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto}
+  .kicker{color:var(--teal);font-weight:700;letter-spacing:2px;font-size:13px;text-transform:uppercase}
+  h1{font-family:Georgia,serif;color:var(--navy);font-size:34px;margin:6px 0 4px}
+  .sub{color:var(--grey);font-size:15px;margin-bottom:34px}
+  h2{font-family:Georgia,serif;color:var(--navy);font-size:21px;margin:42px 0 18px;
+     padding-bottom:8px;border-bottom:2px solid var(--line)}
+
+  /* CONNECTION DIAGRAM */
+  .flow{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center}
+  .sources{display:flex;flex-direction:column;gap:12px;flex:0 0 250px}
+  .src{background:#fff;border:1px solid var(--line);border-left:5px solid var(--teal);
+       border-radius:10px;padding:14px 16px;box-shadow:0 3px 10px rgba(14,42,59,.06)}
+  .src b{color:var(--navy);font-size:15px;display:block}
+  .src span{color:var(--grey);font-size:12.5px}
+  .arrow{flex:0 0 60px;text-align:center;color:var(--teal);font-size:30px;font-weight:700}
+  .engine{flex:0 0 200px;background:var(--navy);color:#fff;border-radius:14px;padding:22px;text-align:center;
+          box-shadow:0 8px 22px rgba(14,42,59,.22)}
+  .engine .tag{color:var(--mint);font-size:11px;font-weight:700;letter-spacing:1.5px}
+  .engine h3{font-family:Georgia,serif;font-size:22px;margin:6px 0 8px}
+  .engine p{color:#CADCFC;font-size:12.5px}
+  .targets{display:flex;flex-direction:column;gap:12px;flex:0 0 260px}
+  .tg{background:#fff;border:1px solid var(--line);border-left:5px solid var(--sea);
+      border-radius:10px;padding:13px 16px;box-shadow:0 3px 10px rgba(14,42,59,.06)}
+  .tg b{color:var(--navy);font-size:14px;display:block}
+  .tg span{color:var(--grey);font-size:12px}
+  .note{text-align:center;color:var(--grey);font-style:italic;font-size:13px;margin-top:20px}
+
+  /* TIMELINE */
+  .waves{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:6px}
+  .wave{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+        box-shadow:0 5px 16px rgba(14,42,59,.07);display:flex;flex-direction:column}
+  .wbar{height:7px}
+  .wbody{padding:20px 20px 22px}
+  .wnum{width:46px;height:46px;border-radius:50%;color:#fff;font-weight:700;font-size:22px;
+        display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .wphase{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+  .wtitle{font-family:Georgia,serif;color:var(--navy);font-size:19px;margin:4px 0 12px}
+  .wave ul{list-style:none}
+  .wave li{font-size:13px;color:var(--ink);padding:5px 0 5px 20px;position:relative}
+  .wave li::before{content:"";position:absolute;left:0;top:11px;width:8px;height:8px;border-radius:50%}
+  .goal{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;font-style:italic;color:var(--grey)}
+
+  table{width:100%;border-collapse:collapse;margin-top:8px;background:#fff;border-radius:10px;overflow:hidden;
+        box-shadow:0 3px 12px rgba(14,42,59,.06)}
+  th{background:var(--navy);color:#fff;text-align:left;font-size:13px;padding:11px 14px}
+  td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  td:first-child{font-weight:700;color:var(--navy)}
+  .pri{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;color:#fff}
+  .foot{margin-top:40px;font-size:12px;color:var(--grey);text-align:center;border-top:1px solid var(--line);padding-top:16px}
+  @media print{body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Centralia · Producto nuevo</div>
+  <h1>Centralia Personas — Roadmap y conexión de módulos</h1>
+  <div class="sub">RRHH y Nómina para Costa Rica, construido sobre los datos que ya captura la suite. Junio 2026.</div>
+
+  <h2>1 · Cómo se conecta con lo que ya existe</h2>
+  <div class="flow">
+    <div class="sources">
+      <div class="src" style="border-left-color:#028090"><b>WhatsApp IA</b><span>Canal del cliente · y del empleado</span></div>
+      <div class="src" style="border-left-color:#00A896"><b>Marcaje</b><span>Horas reales, faltas y tardías</span></div>
+      <div class="src" style="border-left-color:#02C39A"><b>POS</b><span>Ventas y costo por sucursal</span></div>
+    </div>
+    <div class="arrow">&#10142;</div>
+    <div class="engine">
+      <div class="tag">NUEVO PRODUCTO</div>
+      <h3>Centralia<br>Personas</h3>
+      <p>Convierte la asistencia en vacaciones, planilla y cumplimiento.</p>
+    </div>
+    <div class="arrow">&#10142;</div>
+    <div class="targets">
+      <div class="tg"><b>Vacaciones &amp; solicitudes</b><span>Cálculo proporcional automático</span></div>
+      <div class="tg"><b>Nómina &amp; CCSS</b><span>Planilla, aguinaldo, liquidaciones</span></div>
+      <div class="tg"><b>Autoservicio</b><span>Saldo y colilla por WhatsApp</span></div>
+    </div>
+  </div>
+  <div class="note">El dato más caro de RRHH —las horas reales— ya está dentro de Centralia. Eso baja el costo de implementación y crea una barrera de salida.</div>
+
+  <h2>2 · Las tres olas</h2>
+  <div class="waves">
+    <div class="wave">
+      <div class="wbar" style="background:#028090"></div>
+      <div class="wbody">
+        <div class="wnum" style="background:#028090">1</div>
+        <div class="wphase" style="color:#028090">Ola 1 · MVP</div>
+        <div class="wtitle">Gestión de personal</div>
+        <ul>
+          <li style="--d:#028090">Expediente digital del empleado</li>
+          <li>Vacaciones proporcionales automáticas</li>
+          <li>Solicitudes y aprobaciones</li>
+          <li>Ausencias e incapacidades</li>
+          <li>Alertas y vencimientos</li>
+        </ul>
+        <div class="goal">Meta: validar adopción y precio sobre la base de Marcaje.</div>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wbar" style="background:#00A896"></div>
+      <div class="wbody">
+        <div class="wnum" style="background:#00A896">2</div>
+        <div class="wphase" style="color:#00A896">Ola 2</div>
+        <div class="wtitle">Nómina Costa Rica</div>
+        <ul>
+          <li>Planilla con horas reales</li>
+          <li>Cargas sociales CCSS</li>
+          <li>Aguinaldo y horas extra</li>
+          <li>Colillas + archivo SICERE/banco</li>
+          <li>Liquidaciones y cesantía</li>
+        </ul>
+        <div class="goal">Meta: capturar el valor recurrente alto. El corazón del ingreso.</div>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wbar" style="background:#02C39A"></div>
+      <div class="wbody">
+        <div class="wnum" style="background:#02C39A">3</div>
+        <div class="wphase" style="color:#02C39A">Ola 3</div>
+        <div class="wtitle">Autoservicio + analítica</div>
+        <ul>
+          <li>Autoservicio del empleado por WhatsApp</li>
+          <li>Reportes de rotación y ausentismo</li>
+          <li>Costo de planilla por sucursal</li>
+          <li>Reclutamiento y onboarding ligero</li>
+          <li>Evaluación de desempeño</li>
+        </ul>
+        <div class="goal">Meta: profundizar el uso y subir el ticket promedio.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3 · Priorización</h2>
+  <table>
+    <tr><th style="width:90px">Prioridad</th><th>Iniciativa</th><th>Por qué ahora</th></tr>
+    <tr>
+      <td><span class="pri" style="background:#028090">Alta</span></td>
+      <td>Ola 1 — Gestión de personal</td>
+      <td>Upsell de bajo costo y baja fricción a la base instalada de Marcaje; valida demanda.</td>
+    </tr>
+    <tr>
+      <td><span class="pri" style="background:#00A896">Alta</span></td>
+      <td>Ola 2 — Nómina (tras validar Ola 1)</td>
+      <td>Mayor disposición a pagar y producto pegajoso; es donde está el ingreso recurrente.</td>
+    </tr>
+    <tr>
+      <td><span class="pri" style="background:#5B6B73">Media</span></td>
+      <td>Ola 3 — Autoservicio WhatsApp</td>
+      <td>Reutiliza el chatbot existente; diferenciador difícil de copiar para la competencia.</td>
+    </tr>
+    <tr>
+      <td><span class="pri" style="background:#9AAAB0">Futuro</span></td>
+      <td>Facturación electrónica (sobre POS)</td>
+      <td>El empuje de Hacienda 4.4 abre una segunda línea conectada al POS, más adelante.</td>
+    </tr>
+  </table>
+
+  <div class="foot">Cifras y plazos son referencias de planeación a junio 2026. Validar parámetros legales (vacaciones, aguinaldo, CCSS, liquidaciones) con asesoría laboral costarricense antes del lanzamiento.</div>
+</div>
+</body>
+</html>
