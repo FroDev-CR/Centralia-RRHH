@@ -1,0 +1,906 @@
+"use client";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { UserButton } from "@clerk/nextjs";
+import {
+  todayISO, fmtMoney, fmtDate, daysBetween, inclusiveDays, addDays, initials,
+  vacAccrued, vacTaken, vacBalance, buildAlerts, calcRow, periodLabel, periodKey,
+  aguinaldoDe, liquidacion, VAC_ANUAL,
+} from "@/lib/calc";
+
+const NAV = [
+  ["inicio", "Inicio", "layout-dashboard"],
+  ["empleados", "Empleados", "users"],
+  ["solicitudes", "Solicitudes", "clipboard-list"],
+  ["ausencias", "Ausencias", "calendar-x"],
+  ["nomina", "Nómina", "banknote"],
+  ["alertas", "Alertas", "bell-ring"],
+  ["reportes", "Reportes", "bar-chart-3"],
+  ["ajustes", "Ajustes", "settings"],
+];
+const ROLE_LBL = { empleado: "Empleado", supervisor: "Supervisor", rrhh: "RRHH" };
+
+function Ico({ name, size = 16, style }) {
+  return <i data-lucide={name} style={{ width: size, height: size, ...style }} />;
+}
+
+export default function DashboardApp({ company: initialCompany }) {
+  const [company, setCompany] = useState(initialCompany);
+  const [employees, setEmployees] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [absences, setAbsences] = useState([]);
+  const [payroll, setPayroll] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("inicio");
+  const [theme, setTheme] = useState("dark");
+  const [toast, setToast] = useState("");
+  const [modal, setModal] = useState(null);   // {kind, payload}
+  const [drawer, setDrawer] = useState(null);  // {kind, payload}
+  const [query, setQuery] = useState("");
+  const [sucFilter, setSucFilter] = useState("");
+  const [period, setPeriod] = useState({ mes: todayISO().slice(0, 7), tipo: "Mensual", quincena: 1 });
+
+  // ---- carga inicial ----
+  const reload = useCallback(async () => {
+    const r = await fetch("/api/data", { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    setCompany(d.company); setEmployees(d.employees); setRequests(d.requests);
+    setAbsences(d.absences); setPayroll(d.payroll || {});
+  }, []);
+  useEffect(() => { reload().finally(() => setLoading(false)); }, [reload]);
+
+  // ---- íconos + tema ----
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+  useEffect(() => {
+    const t = localStorage.getItem("cc_theme") || "dark";
+    setTheme(t); document.documentElement.setAttribute("data-theme", t);
+  }, []);
+  function toggleTheme() {
+    const n = theme === "dark" ? "light" : "dark";
+    setTheme(n); localStorage.setItem("cc_theme", n);
+    document.documentElement.setAttribute("data-theme", n);
+  }
+  function notify(m) { setToast(m); clearTimeout(window.__t); window.__t = setTimeout(() => setToast(""), 2200); }
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") { setModal(null); setDrawer(null); } };
+    document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // ---- api helper ----
+  async function api(url, method, body) {
+    const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { notify(d.error || "Ocurrió un error"); throw new Error(d.error || "error"); }
+    return d;
+  }
+
+  const alerts = useMemo(() => buildAlerts(employees, requests), [employees, requests]);
+  const pendientes = requests.filter((r) => r.estado === "Pendiente");
+  const sucursales = useMemo(() => Array.from(new Set(employees.map((e) => e.sucursal).filter(Boolean))).sort(), [employees]);
+
+  // ======================= acciones =======================
+  async function saveEmp(form, id) {
+    if (!form.nombre?.trim()) return notify("Poné el nombre del empleado");
+    if (!form.ingreso) return notify("Poné la fecha de ingreso");
+    if (id) await api(`/api/employees/${id}`, "PATCH", form);
+    else await api("/api/employees", "POST", form);
+    await reload(); setModal(null); notify(id ? "Empleado actualizado" : "Empleado agregado");
+  }
+  async function delEmp(id) {
+    if (!confirm("¿Eliminar este empleado y sus registros? No se puede deshacer.")) return;
+    await api(`/api/employees/${id}`, "DELETE"); await reload(); setDrawer(null); notify("Empleado eliminado");
+  }
+  async function saveReq(form) {
+    if (!form.desde || !form.hasta) return notify("Poné las fechas");
+    if (daysBetween(form.desde, form.hasta) < 0) return notify("La fecha 'hasta' no puede ser antes de 'desde'");
+    if ((Number(form.dias) || 0) <= 0) return notify("Los días deben ser mayor a 0");
+    await api("/api/requests", "POST", form); await reload(); setModal(null); notify("Solicitud registrada");
+  }
+  async function decideReq(r, estado) {
+    if (estado === "Aprobada" && r.tipo === "Vacaciones") {
+      const emp = employees.find((e) => e.id === r.empId);
+      if (emp && vacBalance(emp, requests) - r.dias < 0) {
+        if (!confirm(`${emp.nombre} no tiene saldo suficiente de vacaciones (quedaría en negativo). ¿Aprobar de todos modos?`)) return;
+      }
+    }
+    await api(`/api/requests/${r.id}`, "PATCH", { estado }); await reload();
+    notify(estado === "Aprobada" ? "Solicitud aprobada" : "Solicitud rechazada");
+  }
+  async function saveAbs(form) {
+    if (!form.fecha) return notify("Poné la fecha");
+    await api("/api/absences", "POST", form); await reload(); setModal(null); notify("Ausencia registrada");
+  }
+  async function delAbs(id) { await api(`/api/absences/${id}`, "DELETE"); await reload(); notify("Ausencia eliminada"); }
+  async function updPlanilla(empId, field, value) {
+    const v = Number(value) || 0;
+    setPayroll((p) => {
+      const k = periodKey(period); const next = { ...p };
+      next[k] = next[k] || { items: {} };
+      next[k].items = { ...next[k].items, [empId]: { ...(next[k].items?.[empId] || { extra: 0, otras: 0 }), [field]: v } };
+      return next;
+    });
+    try { await api("/api/payroll", "PATCH", { periodKey: periodKey(period), empId, field, value: v }); } catch { reload(); }
+  }
+  async function saveAjustes(form) {
+    await api("/api/company", "PATCH", form);
+    setCompany((c) => ({ ...c, ...form })); notify("Ajustes guardados");
+  }
+  async function importEmployees(rows) {
+    const d = await api("/api/employees/import", "POST", { rows });
+    await reload(); setModal(null); notify(`${d.inserted} empleado(s) importado(s)`);
+  }
+
+  function adjFor(empId) {
+    const k = periodKey(period); return payroll[k]?.items?.[empId] || { extra: 0, otras: 0 };
+  }
+
+  // ======================= UI helpers =======================
+  const C = {
+    bg: "rgb(var(--bg))", fg: "rgb(var(--fg))", card: "rgb(var(--card))", border: "rgb(var(--border))",
+    muted: "rgb(var(--muted))", mfg: "rgb(var(--muted-fg))", primary: "rgb(var(--primary))",
+  };
+  function PageHead({ title, sub, action }) {
+    return (
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.02em", margin: 0 }}>{title}</h1>
+          <p style={{ color: C.mfg, fontSize: 14, margin: "6px 0 0" }}>{sub}</p>
+        </div>
+        {action}
+      </div>
+    );
+  }
+  function BtnPrimary({ label, onClick, ico = "plus" }) {
+    return <button onClick={onClick} className="btn-grad brand-grad"><Ico name={ico} /> {label}</button>;
+  }
+  function Stat({ k, v, foot, ico, tone = "primary" }) {
+    const c = tone === "primary" ? "13,148,136" : tone === "accent" ? "79,70,229" : tone === "warning" ? "251,191,36" : "248,113,113";
+    return (
+      <div className="rise" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: C.mfg }}>{k}</span>
+          <span style={{ width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: `rgba(${c},.12)`, color: `rgb(${c})` }}><Ico name={ico} /></span>
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.02em", marginTop: 10 }}>{v}</div>
+        <div style={{ fontSize: 12.5, color: C.mfg, marginTop: 4 }}>{foot}</div>
+      </div>
+    );
+  }
+  function Empty({ ico, title, desc, action }) {
+    return (
+      <div className="rise" style={{ textAlign: "center", padding: "70px 24px", border: `1.5px dashed ${C.border}`, borderRadius: 18, background: C.card }}>
+        <div className="logo-sq brand-grad" style={{ width: 54, height: 54, borderRadius: 16, margin: "0 auto 16px" }}><Ico name={ico} size={26} /></div>
+        <div style={{ fontSize: 17, fontWeight: 700 }}>{title}</div>
+        <p style={{ color: C.mfg, fontSize: 14, maxWidth: 420, margin: "8px auto 18px" }}>{desc}</p>
+        {action}
+      </div>
+    );
+  }
+
+  // ======================= VIEWS =======================
+  function Inicio() {
+    const mes = todayISO().slice(0, 7);
+    const ausMes = absences.filter((a) => a.fecha?.slice(0, 7) === mes);
+    if (employees.length === 0)
+      return (<><PageHead title="Inicio" sub="Resumen de tu equipo" action={<BtnPrimary label="Agregar empleado" onClick={() => setModal({ kind: "emp" })} />} />
+        <Empty ico="users" title="Todavía no hay empleados" desc="Agregá a tu primer colaborador para calcular vacaciones, registrar solicitudes y llevar el expediente." action={<BtnPrimary label="Agregar primer empleado" onClick={() => setModal({ kind: "emp" })} />} /></>);
+    // chart data
+    const months = [];
+    for (let i = 5; i >= 0; i--) { const d = new Date(); d.setMonth(d.getMonth() - i); months.push(d.toISOString().slice(0, 7)); }
+    const ausByMonth = months.map((m) => ({ m, n: absences.filter((a) => a.fecha?.slice(0, 7) === m).reduce((s, a) => s + (a.dias || 1), 0) }));
+    const costBySuc = {};
+    employees.forEach((e) => { const c = calcRow(e, adjFor(e.id), company, period); const s = e.sucursal || "Sin sucursal"; costBySuc[s] = (costBySuc[s] || 0) + c.bruto + c.patrono; });
+    const sucArr = Object.entries(costBySuc).sort((a, b) => b[1] - a[1]);
+    return (
+      <>
+        <PageHead title="Inicio" sub={company.nombre ? `Resumen de ${company.nombre}` : "Resumen de tu equipo"} action={<BtnPrimary label="Agregar empleado" onClick={() => setModal({ kind: "emp" })} />} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginBottom: 22 }}>
+          <Stat k="Empleados" v={employees.length} foot="activos en planilla" ico="users" tone="primary" />
+          <Stat k="Solicitudes" v={pendientes.length} foot="pendientes de aprobar" ico="clipboard-list" tone="accent" />
+          <Stat k="Ausencias" v={ausMes.length} foot="registradas este mes" ico="calendar-x" tone="warning" />
+          <Stat k="Alertas" v={alerts.length} foot="requieren tu atención" ico="bell-ring" tone="destructive" />
+        </div>
+        <div className="two" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
+          <Panel title="Ausencias (últimos 6 meses)">
+            <BarChart data={ausByMonth.map((x) => ({ label: x.m.slice(5), value: x.n }))} unit=" d" color="251,191,36" />
+          </Panel>
+          <Panel title="Costo de planilla por sucursal">
+            {sucArr.length ? <BarsH data={sucArr.map(([s, v]) => ({ label: s, value: v }))} /> : <Muted>Agregá salarios para ver el costo.</Muted>}
+          </Panel>
+        </div>
+        <div className="two" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <div>
+            <Panel title="Solicitudes pendientes" link={() => setView("solicitudes")}>
+              {pendientes.length ? pendientes.slice(0, 5).map((r) => <ReqRow key={r.id} r={r} />) : <Muted>No hay solicitudes pendientes. Todo al día.</Muted>}
+            </Panel>
+          </div>
+          <div>
+            <Panel title="Alertas" link={() => setView("alertas")}>
+              {alerts.length ? alerts.slice(0, 5).map((a, i) => <AlertRow key={i} a={a} />) : <Muted>Sin alertas por ahora.</Muted>}
+            </Panel>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  function Muted({ children }) { return <div style={{ color: C.mfg, fontSize: 14, padding: 18, border: `1px dashed ${C.border}`, borderRadius: 12 }}>{children}</div>; }
+  function Panel({ title, link, children }) {
+    return (<div><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{title}</h2>
+      {link && <button onClick={link} style={{ fontSize: 12.5, color: C.primary, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Ver todas</button>}
+    </div>{children}</div>);
+  }
+  function BarChart({ data, unit = "", color = "13,148,136" }) {
+    const max = Math.max(1, ...data.map((d) => d.value));
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "18px 18px", display: "flex", alignItems: "flex-end", gap: 10, height: 180 }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%", justifyContent: "flex-end" }}>
+            <div style={{ fontSize: 11, color: C.mfg }} className="mono">{d.value}{unit}</div>
+            <div title={`${d.value}${unit}`} style={{ width: "70%", minHeight: 3, height: `${(d.value / max) * 100}%`, background: `rgb(${color})`, borderRadius: "6px 6px 0 0", transition: "height .3s" }} />
+            <div style={{ fontSize: 11, color: C.mfg }}>{d.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  function BarsH({ data }) {
+    const max = Math.max(1, ...data.map((d) => d.value));
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+        {data.map((d, i) => (
+          <div key={i}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 5 }}><span>{d.label}</span><span className="mono" style={{ color: C.mfg }}>{fmtMoney(d.value)}</span></div>
+            <div style={{ height: 9, background: C.muted, borderRadius: 6, overflow: "hidden" }}><div className="brand-grad" style={{ height: "100%", width: `${(d.value / max) * 100}%`, borderRadius: 6 }} /></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function ReqRow({ r, compact }) {
+    const e = employees.find((x) => x.id === r.empId);
+    const toneMap = { Pendiente: "251,191,36", Aprobada: "52,211,153", Rechazada: "248,113,113" };
+    const c = toneMap[r.estado];
+    return (
+      <div className="rise" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", alignItems: "center", gap: 13, marginBottom: 10 }}>
+        <span style={{ width: 36, height: 36, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: "rgba(79,70,229,.12)", color: "rgb(var(--accent))" }}>
+          <Ico name={r.tipo === "Vacaciones" ? "umbrella" : r.tipo === "Incapacidad" ? "stethoscope" : "calendar"} size={17} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{e ? e.nombre : "(empleado eliminado)"} · <span style={{ color: C.mfg }}>{r.tipo}</span>
+            {r.origen === "empleado" && <span style={{ fontSize: 10, marginLeft: 6, color: C.primary, border: `1px solid ${C.border}`, borderRadius: 6, padding: "1px 6px" }}>auto-servicio</span>}</div>
+          <div style={{ fontSize: 12.5, color: C.mfg }}>{fmtDate(r.desde)} → {fmtDate(r.hasta)} · {r.dias} día(s){r.nota ? ` · ${r.nota}` : ""}</div>
+        </div>
+        {r.estado === "Pendiente" ? (
+          <div style={{ display: "flex", gap: 7 }}>
+            <button onClick={() => decideReq(r, "Aprobada")} style={{ fontSize: 12, fontFamily: "inherit", border: "1px solid rgba(52,211,153,.4)", color: "rgb(var(--success))", background: "rgba(52,211,153,.1)", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Aprobar</button>
+            <button onClick={() => decideReq(r, "Rechazada")} style={{ fontSize: 12, fontFamily: "inherit", border: `1px solid ${C.border}`, color: C.mfg, background: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Rechazar</button>
+          </div>
+        ) : <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: `rgb(${c})`, background: `rgba(${c},.14)`, borderRadius: 6, padding: "3px 9px" }}>{r.estado}</span>}
+      </div>
+    );
+  }
+  function AlertRow({ a }) {
+    const c = a.tone === "primary" ? "13,148,136" : a.tone === "warning" ? "251,191,36" : a.tone === "destructive" ? "248,113,113" : "79,70,229";
+    return (
+      <div className="rise" style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: `4px solid rgb(${c})`, borderRadius: 12, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+        <span style={{ width: 34, height: 34, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: `rgba(${c},.13)`, color: `rgb(${c})` }}><Ico name={a.ico} /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{a.emp.nombre}</div>
+          <div style={{ fontSize: 12.5, color: C.mfg }}>{a.txt}</div>
+        </div>
+        <button onClick={() => openExpediente(a.emp.id)} style={{ fontSize: 12, fontFamily: "inherit", border: `1px solid ${C.border}`, color: C.mfg, background: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Ver</button>
+      </div>
+    );
+  }
+
+  function Empleados() {
+    const filtered = employees.filter((e) =>
+      (!query || (e.nombre + " " + (e.cedula || "") + " " + (e.puesto || "")).toLowerCase().includes(query.toLowerCase())) &&
+      (!sucFilter || e.sucursal === sucFilter));
+    return (
+      <>
+        <PageHead title="Empleados" sub={`${employees.length} en total`} action={
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+            <button onClick={() => setModal({ kind: "import" })} className="btn-ghost"><Ico name="upload" /> Importar</button>
+            <BtnPrimary label="Agregar empleado" onClick={() => setModal({ kind: "emp" })} />
+          </div>} />
+        {employees.length === 0 ? (
+          <Empty ico="users" title="Aún no agregás empleados" desc="Cargá tu equipo con nombre, cédula, puesto, salario y fecha de ingreso. Las vacaciones se calculan solas." action={<BtnPrimary label="Agregar empleado" onClick={() => setModal({ kind: "emp" })} />} />
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+              <div className="field" style={{ flex: 1, minWidth: 200, margin: 0 }}>
+                <input placeholder="Buscar por nombre, cédula o puesto…" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              {sucursales.length > 0 && (
+                <div className="field" style={{ margin: 0 }}>
+                  <select value={sucFilter} onChange={(e) => setSucFilter(e.target.value)} style={{ minWidth: 160 }}>
+                    <option value="">Todas las sucursales</option>
+                    {sucursales.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "grid", gap: 11 }}>
+              {filtered.map((e) => {
+                const bal = vacBalance(e, requests);
+                return (
+                  <button key={e.id} onClick={() => openExpediente(e.id)} className="rise" style={{ textAlign: "left", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", cursor: "pointer", fontFamily: "inherit", color: "inherit", display: "flex", alignItems: "center", gap: 14 }}>
+                    <span style={{ width: 42, height: 42, borderRadius: "50%", flex: "none", display: "grid", placeItems: "center", fontWeight: 700, background: "rgba(13,148,136,.14)", color: C.primary }}>{initials(e.nombre)}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.nombre}
+                        {e.role !== "empleado" && <span style={{ fontSize: 10, marginLeft: 7, color: "rgb(var(--accent))", border: `1px solid ${C.border}`, borderRadius: 6, padding: "1px 6px" }}>{ROLE_LBL[e.role]}</span>}</span>
+                      <span style={{ display: "block", fontSize: 12.5, color: C.mfg }}>{e.puesto || "—"}{e.sucursal ? " · " + e.sucursal : ""}{e.username ? " · @" + e.username : ""}</span>
+                    </span>
+                    <span style={{ textAlign: "right", flex: "none" }}>
+                      <span style={{ display: "block", fontSize: 12, color: C.mfg }}>Vacaciones</span>
+                      <span style={{ display: "block", fontWeight: 700, fontSize: 15 }} className="mono">{bal.toFixed(1)} d</span>
+                    </span>
+                    <Ico name="chevron-right" size={18} style={{ color: C.mfg, flex: "none" }} />
+                  </button>
+                );
+              })}
+              {filtered.length === 0 && <Muted>Ningún empleado coincide con el filtro.</Muted>}
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
+
+  function Solicitudes() {
+    const order = { Pendiente: 0, Aprobada: 1, Rechazada: 2 };
+    const sorted = [...requests].sort((a, b) => (order[a.estado] - order[b.estado]) || (b.creado || "").localeCompare(a.creado || ""));
+    return (
+      <>
+        <PageHead title="Solicitudes" sub="Vacaciones, permisos e incapacidades" action={employees.length ? <BtnPrimary label="Nueva solicitud" onClick={() => setModal({ kind: "req" })} /> : null} />
+        {employees.length === 0 ? <Empty ico="clipboard-list" title="Primero agregá empleados" desc="Necesitás al menos un empleado para registrar solicitudes." action={<BtnPrimary label="Ir a Empleados" onClick={() => setView("empleados")} ico="arrow-right" />} />
+          : requests.length === 0 ? <Empty ico="clipboard-list" title="Sin solicitudes todavía" desc="Registrá la primera solicitud de vacaciones, permiso o incapacidad." action={<BtnPrimary label="Nueva solicitud" onClick={() => setModal({ kind: "req" })} />} />
+            : sorted.map((r) => <ReqRow key={r.id} r={r} />)}
+      </>
+    );
+  }
+
+  function Ausencias() {
+    const sorted = [...absences].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+    return (
+      <>
+        <PageHead title="Ausencias" sub="Faltas, tardías e incapacidades" action={employees.length ? <BtnPrimary label="Registrar ausencia" onClick={() => setModal({ kind: "abs" })} /> : null} />
+        {employees.length === 0 ? <Empty ico="calendar-x" title="Primero agregá empleados" desc="Necesitás empleados para registrar ausencias." action={<BtnPrimary label="Ir a Empleados" onClick={() => setView("empleados")} ico="arrow-right" />} />
+          : absences.length === 0 ? <Empty ico="calendar-x" title="Sin ausencias registradas" desc="Llevá el control de faltas, tardías e incapacidades de tu equipo." action={<BtnPrimary label="Registrar ausencia" onClick={() => setModal({ kind: "abs" })} />} />
+            : sorted.map((a) => {
+              const e = employees.find((x) => x.id === a.empId);
+              const tone = { Falta: "248,113,113", Tardía: "251,191,36", Incapacidad: "79,70,229" }[a.tipo] || "151,168,172";
+              return (
+                <div key={a.id} className="rise" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", alignItems: "center", gap: 13, marginBottom: 10 }}>
+                  <span style={{ width: 36, height: 36, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: `rgba(${tone},.13)`, color: `rgb(${tone})` }}><Ico name={a.tipo === "Incapacidad" ? "stethoscope" : a.tipo === "Tardía" ? "clock" : "user-x"} size={17} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{e ? e.nombre : "(eliminado)"} · <span style={{ color: C.mfg }}>{a.tipo}</span></div>
+                    <div style={{ fontSize: 12.5, color: C.mfg }}>{fmtDate(a.fecha)} · {a.dias || 1} día(s){a.detalle ? ` · ${a.detalle}` : ""}</div>
+                  </div>
+                  <button onClick={() => delAbs(a.id)} style={{ background: "none", border: "none", color: C.mfg, cursor: "pointer", padding: 6, borderRadius: 8 }}><Ico name="trash-2" /></button>
+                </div>
+              );
+            })}
+      </>
+    );
+  }
+
+  function Alertas() {
+    return (<><PageHead title="Alertas" sub="Vencimientos y avisos automáticos" />
+      {alerts.length === 0 ? <Empty ico="bell-ring" title="Todo en orden" desc="No hay períodos de prueba por vencer, vacaciones acumuladas ni contratos próximos a terminar." />
+        : alerts.map((a, i) => <AlertRow key={i} a={a} />)}</>);
+  }
+
+  // ---- NÓMINA ----
+  function setP(k, v) { setPeriod((p) => ({ ...p, [k]: k === "quincena" ? Number(v) : v })); }
+  function Nomina() {
+    if (employees.length === 0)
+      return (<><PageHead title="Nómina" sub="Planilla, cargas sociales y aguinaldo · Costa Rica" />
+        <Empty ico="banknote" title="Primero agregá empleados" desc="La planilla se arma con los empleados y sus salarios." action={<BtnPrimary label="Ir a Empleados" onClick={() => setView("empleados")} ico="arrow-right" />} /></>);
+    let tB = 0, tO = 0, tN = 0, tP = 0;
+    const rows = employees.map((e) => { const c = calcRow(e, adjFor(e.id), company, period); tB += c.bruto; tO += c.obrero; tN += c.neto; tP += c.patrono; return { e, c }; });
+    return (
+      <>
+        <PageHead title="Nómina" sub="Planilla, cargas sociales y aguinaldo · Costa Rica" action={
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+            <button onClick={() => setModal({ kind: "aguinaldo" })} className="btn-ghost"><Ico name="gift" /> Aguinaldo</button>
+            <BtnPrimary label="Imprimir planilla" onClick={printPlanilla} ico="printer" />
+          </div>} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", marginBottom: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
+          <div className="field" style={{ margin: 0 }}><label>Mes</label><input type="month" value={period.mes} onChange={(e) => setP("mes", e.target.value)} /></div>
+          <div className="field" style={{ margin: 0 }}><label>Tipo</label><select value={period.tipo} onChange={(e) => setP("tipo", e.target.value)}><option>Mensual</option><option>Quincenal</option></select></div>
+          {period.tipo === "Quincenal" && <div className="field" style={{ margin: 0 }}><label>Quincena</label><select value={period.quincena} onChange={(e) => setP("quincena", e.target.value)}><option value="1">Primera</option><option value="2">Segunda</option></select></div>}
+          <div style={{ marginLeft: "auto", fontSize: 13, color: C.mfg, alignSelf: "center" }}>Período: <b style={{ color: C.fg }}>{periodLabel(period)}</b></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 13, marginBottom: 20 }}>
+          <Stat k="Bruto total" v={fmtMoney(tB)} foot={`${employees.length} empleados`} ico="wallet" tone="primary" />
+          <Stat k="CCSS obrero" v={fmtMoney(tO)} foot={`${company.ccssObrero}% deducido`} ico="minus-circle" tone="accent" />
+          <Stat k="Neto a pagar" v={fmtMoney(tN)} foot="líquido al equipo" ico="banknote" tone="primary" />
+          <Stat k="Carga patronal" v={fmtMoney(tP)} foot={`${company.ccssPatrono}% a tu cargo`} ico="building-2" tone="warning" />
+        </div>
+        <div style={{ overflowX: "auto", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760, fontSize: 13.5 }}>
+            <thead><tr style={{ textAlign: "left", color: C.mfg, fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em" }}>
+              <th style={{ padding: "13px 12px", fontWeight: 600 }}>Empleado</th>
+              <th style={{ padding: "13px 12px", fontWeight: 600, textAlign: "right" }}>Salario base</th>
+              <th style={{ padding: "13px 12px", fontWeight: 600, textAlign: "right" }}>Horas extra (₡)</th>
+              <th style={{ padding: "13px 12px", fontWeight: 600, textAlign: "right" }}>CCSS obrero</th>
+              <th style={{ padding: "13px 12px", fontWeight: 600, textAlign: "right" }}>Otras deduc.</th>
+              <th style={{ padding: "13px 12px", fontWeight: 600, textAlign: "right" }}>Neto</th>
+              <th style={{ padding: "13px 8px", fontWeight: 600, textAlign: "center" }}>Colilla</th>
+            </tr></thead>
+            <tbody>
+              {rows.map(({ e, c }) => (
+                <tr key={e.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: "11px 12px" }}><div style={{ fontWeight: 600 }}>{e.nombre}</div><div style={{ fontSize: 12, color: C.mfg }}>{e.puesto || "—"}</div></td>
+                  <td style={{ padding: "11px 12px", textAlign: "right" }} className="mono">{fmtMoney(c.base)}</td>
+                  <td style={{ padding: "6px 10px", textAlign: "right" }}><input type="number" defaultValue={c.extra} onBlur={(ev) => updPlanilla(e.id, "extra", ev.target.value)} style={inpNum} /></td>
+                  <td style={{ padding: "11px 12px", textAlign: "right", color: "rgb(var(--destructive))" }} className="mono">−{fmtMoney(c.obrero)}</td>
+                  <td style={{ padding: "6px 10px", textAlign: "right" }}><input type="number" defaultValue={c.otras} onBlur={(ev) => updPlanilla(e.id, "otras", ev.target.value)} style={inpNum} /></td>
+                  <td style={{ padding: "11px 12px", textAlign: "right", fontWeight: 700 }} className="mono">{fmtMoney(c.neto)}</td>
+                  <td style={{ padding: "11px 8px", textAlign: "center" }}><button onClick={() => setDrawer({ kind: "colilla", payload: e.id })} title="Ver colilla" style={{ background: "none", border: `1px solid ${C.border}`, color: C.mfg, borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Ico name="receipt" size={15} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ fontSize: 12, color: C.mfg, marginTop: 12 }}>Las horas extra y otras deducciones se guardan por período. La carga patronal ({company.ccssPatrono}%) es adicional al neto y la asume la empresa. Configurá los porcentajes de la CCSS en Ajustes.</p>
+      </>
+    );
+  }
+  const inpNum = { width: 96, textAlign: "right", background: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, color: C.fg, padding: "7px 9px", fontFamily: "'JetBrains Mono',monospace", fontSize: 13 };
+
+  // ---- REPORTES ----
+  function Reportes() {
+    function dl(name, rowsArr) {
+      const csv = rowsArr.map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      notify("Reporte exportado");
+    }
+    const expPlanilla = () => {
+      const head = ["Empleado", "Cédula", "Puesto", "Sucursal", "Bruto", "CCSS obrero", "Otras", "Neto", "Carga patronal"];
+      const body = employees.map((e) => { const c = calcRow(e, adjFor(e.id), company, period); return [e.nombre, e.cedula, e.puesto, e.sucursal, Math.round(c.bruto), Math.round(c.obrero), Math.round(c.otras), Math.round(c.neto), Math.round(c.patrono)]; });
+      dl(`planilla-${periodKey(period)}.csv`, [head, ...body]);
+    };
+    const expEmpleados = () => {
+      const head = ["Nombre", "Cédula", "Puesto", "Sucursal", "Salario", "Ingreso", "Jornada", "Contrato", "Rol", "Vac. disponibles"];
+      const body = employees.map((e) => [e.nombre, e.cedula, e.puesto, e.sucursal, e.salario, e.ingreso, e.jornada, e.contrato, ROLE_LBL[e.role], vacBalance(e, requests).toFixed(1)]);
+      dl("empleados.csv", [head, ...body]);
+    };
+    const expVac = () => {
+      const head = ["Empleado", "Ingreso", "Acumuladas", "Tomadas", "Disponibles"];
+      const body = employees.map((e) => [e.nombre, e.ingreso, vacAccrued(e).toFixed(1), vacTaken(e, requests).toFixed(1), vacBalance(e, requests).toFixed(1)]);
+      dl("vacaciones.csv", [head, ...body]);
+    };
+    const expAguinaldo = () => {
+      const head = ["Empleado", "Salario", "Aguinaldo proyectado"];
+      const body = employees.map((e) => [e.nombre, e.salario, Math.round(aguinaldoDe(e))]);
+      dl("aguinaldo.csv", [head, ...body]);
+    };
+    const cards = [
+      { t: "Planilla del período", d: `Bruto, deducciones y neto de ${periodLabel(period)}.`, ico: "banknote", on: expPlanilla },
+      { t: "Empleados", d: "Listado completo con salario, contrato y saldo de vacaciones.", ico: "users", on: expEmpleados },
+      { t: "Vacaciones", d: "Acumuladas, tomadas y disponibles por colaborador.", ico: "umbrella", on: expVac },
+      { t: "Aguinaldo proyectado", d: "Proyección del ciclo dic–nov por empleado.", ico: "gift", on: expAguinaldo },
+    ];
+    return (<><PageHead title="Reportes" sub="Exportá a CSV (Excel) la información de tu empresa" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
+        {cards.map((c) => (
+          <div key={c.t} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
+            <span style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(13,148,136,.12)", color: C.primary }}><Ico name={c.ico} size={18} /></span>
+            <div style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 5px" }}>{c.t}</div>
+            <p style={{ color: C.mfg, fontSize: 13, margin: "0 0 14px", lineHeight: 1.5 }}>{c.d}</p>
+            <button onClick={c.on} className="btn-ghost" style={{ width: "100%", justifyContent: "center" }}><Ico name="download" size={15} /> Descargar CSV</button>
+          </div>
+        ))}
+      </div></>);
+  }
+
+  // ---- AJUSTES: ver <AjustesView> (componente estable, abajo) ----
+
+  // ---- expediente drawer ----
+  function openExpediente(id) { setDrawer({ kind: "exp", payload: id }); }
+
+  // ======================= PRINT =======================
+  function printWindow(inner, title) {
+    const w = window.open("", "_blank", "width=720,height=900");
+    if (!w) { notify("Permití las ventanas emergentes para imprimir"); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + title + '</title><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet"></head><body style="margin:0;padding:28px;background:#fff">' + inner + "</body></html>");
+    w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 400);
+  }
+  function colillaHTML(e) {
+    const c = calcRow(e, adjFor(e.id), company, period);
+    const line = (l, v, neg) => `<tr><td style="padding:7px 0;color:#444">${l}</td><td style="padding:7px 0;text-align:right;font-family:monospace">${neg ? "−" : ""}${fmtMoney(v)}</td></tr>`;
+    return `<div style="font-family:Poppins,Arial,sans-serif;max-width:460px;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:14px">
+        <div><div style="font-weight:800;font-size:18px">${company.nombre || "Mi empresa"}</div><div style="font-size:12px;color:#666">Colilla de pago · ${periodLabel(period)}</div></div>
+        <div style="font-weight:800;color:#0d9488;text-align:right">Centralia<br>Personas</div></div>
+      <div style="font-size:13px;margin-bottom:10px"><b>${e.nombre}</b> · ${e.puesto || "—"}${e.cedula ? ` · Céd. ${e.cedula}` : ""}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${line("Salario base", c.base)}${c.extra ? line("Horas extra", c.extra) : ""}
+        <tr><td style="padding:7px 0;font-weight:700;border-top:1px solid #ddd">Salario bruto</td><td style="padding:7px 0;text-align:right;font-weight:700;border-top:1px solid #ddd;font-family:monospace">${fmtMoney(c.bruto)}</td></tr>
+        ${line(`CCSS obrero (${company.ccssObrero}%)`, c.obrero, true)}${c.otras ? line("Otras deducciones", c.otras, true) : ""}
+        <tr><td style="padding:9px 0;font-weight:800;border-top:2px solid #0d9488">Neto a pagar</td><td style="padding:9px 0;text-align:right;font-weight:800;border-top:2px solid #0d9488;font-family:monospace;color:#0d9488">${fmtMoney(c.neto)}</td></tr>
+      </table>
+      <div style="font-size:11px;color:#888;margin-top:14px">Carga patronal CCSS (${company.ccssPatrono}%): ${fmtMoney(c.patrono)} — asumida por la empresa, no se deduce del salario.</div></div>`;
+  }
+  function printPlanilla() {
+    let tB = 0, tO = 0, tN = 0, tP = 0;
+    const rows = employees.map((e) => { const c = calcRow(e, adjFor(e.id), company, period); tB += c.bruto; tO += c.obrero; tN += c.neto; tP += c.patrono;
+      return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${e.nombre}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmtMoney(c.bruto)}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">−${fmtMoney(c.obrero)}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmtMoney(c.otras)}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace;font-weight:700">${fmtMoney(c.neto)}</td></tr>`; }).join("");
+    const inner = `<div style="font-family:Poppins,Arial,sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:14px"><div><div style="font-weight:800;font-size:18px">${company.nombre || "Mi empresa"}</div><div style="font-size:12px;color:#666">Planilla · ${periodLabel(period)}</div></div><div style="font-weight:800;color:#0d9488;text-align:right">Centralia<br>Personas</div></div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:#f3f7f6"><th style="padding:7px 8px;text-align:left">Empleado</th><th style="padding:7px 8px;text-align:right">Bruto</th><th style="padding:7px 8px;text-align:right">CCSS</th><th style="padding:7px 8px;text-align:right">Otras</th><th style="padding:7px 8px;text-align:right">Neto</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:800;border-top:2px solid #0d9488"><td style="padding:8px">Totales</td><td style="padding:8px;text-align:right;font-family:monospace">${fmtMoney(tB)}</td><td style="padding:8px;text-align:right;font-family:monospace">−${fmtMoney(tO)}</td><td></td><td style="padding:8px;text-align:right;font-family:monospace;color:#0d9488">${fmtMoney(tN)}</td></tr></tfoot></table>
+      <div style="font-size:11px;color:#888;margin-top:12px">Carga patronal CCSS total (${company.ccssPatrono}%): ${fmtMoney(tP)} — asumida por la empresa.</div></div>`;
+    printWindow(inner, "Planilla " + periodLabel(period));
+  }
+
+  // ======================= RENDER =======================
+  const navBadge = (id) => {
+    let n = 0;
+    if (id === "solicitudes") n = pendientes.length;
+    if (id === "alertas") n = alerts.length;
+    if (!n) return null;
+    return <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, background: "rgba(13,148,136,.16)", color: C.primary, borderRadius: 999, padding: "1px 8px" }}>{n}</span>;
+  };
+
+  return (
+    <div className="shell" style={{ display: "grid", gridTemplateColumns: "248px 1fr", height: "100vh" }}>
+      <aside className="sidebar" style={{ background: C.card, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", padding: "18px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 18px", borderBottom: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <span className="logo-sq brand-grad" style={{ fontSize: 17 }}>👥</span>
+          <div style={{ lineHeight: 1.1 }}><div style={{ fontWeight: 800, fontSize: 15 }}>Centralia</div><div style={{ fontSize: 12, color: C.mfg }}>{company.nombre || "Personas"}</div></div>
+        </div>
+        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+          {NAV.map(([id, lbl, ic]) => (
+            <button key={id} onClick={() => { setView(id); window.scrollTo(0, 0); }} className={"nav-item" + (view === id ? " on" : "")}>
+              <Ico name={ic} /> {lbl} {navBadge(id)}
+            </button>
+          ))}
+        </nav>
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+          <button onClick={toggleTheme} className="nav-item"><Ico name={theme === "dark" ? "moon" : "sun"} /> {theme === "dark" ? "Modo claro" : "Modo oscuro"}</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 8 }}>
+            <UserButton afterSignOutUrl="/" />
+            <span style={{ fontSize: 13, color: C.mfg }}>Mi cuenta</span>
+          </div>
+        </div>
+      </aside>
+
+      <main style={{ overflowY: "auto", minWidth: 0 }}>
+        <div className="mtopnav" style={{ display: "none", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}><span className="logo-sq brand-grad">👥</span><b>Personas</b></div>
+          <select value={view} onChange={(e) => setView(e.target.value)} style={{ background: C.muted, border: `1px solid ${C.border}`, color: C.fg, borderRadius: 9, padding: "8px 10px", fontFamily: "inherit" }}>
+            {NAV.map(([id, lbl]) => <option key={id} value={id}>{lbl}</option>)}
+          </select>
+        </div>
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "30px 28px 80px" }}>
+          {loading ? <div style={{ color: C.mfg, padding: 40 }}>Cargando…</div> : (
+            <>
+              {view === "inicio" && Inicio()}
+              {view === "empleados" && Empleados()}
+              {view === "solicitudes" && Solicitudes()}
+              {view === "ausencias" && Ausencias()}
+              {view === "nomina" && Nomina()}
+              {view === "alertas" && Alertas()}
+              {view === "reportes" && Reportes()}
+              {view === "ajustes" && <AjustesView company={company} onSave={saveAjustes} snapshot={{ company, employees, requests, absences, payroll }} notify={notify} />}
+            </>
+          )}
+        </div>
+      </main>
+
+      {/* scrim + modal + drawer */}
+      <div className={"scrim" + (modal || drawer ? " open" : "")} onClick={() => { setModal(null); setDrawer(null); }} />
+      <Modals modal={modal} setModal={setModal} drawer={drawer} setDrawer={setDrawer}
+        ctx={{ company, employees, requests, period, adjFor, saveEmp, saveReq, saveAbs, importEmployees, delEmp, openExpediente, decideReq, colillaHTML, printWindow, C, notify }} />
+
+      {toast && <div className="toast show">{toast}</div>}
+      <style>{`@media(max-width:860px){.shell{grid-template-columns:1fr !important}.sidebar{display:none}.mtopnav{display:flex !important}}@media(max-width:760px){.two{grid-template-columns:1fr !important}}`}</style>
+    </div>
+  );
+}
+
+/* ============================================================
+   Modales y Drawer (forms)
+   ============================================================ */
+function Modals({ modal, setModal, drawer, setDrawer, ctx }) {
+  return (
+    <>
+      <div className={"modal" + (modal ? " open" : "")}>
+        <div style={{ background: "rgb(var(--card))", border: "1px solid rgb(var(--border))", borderRadius: 18, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+          {modal?.kind === "emp" && <EmpForm ctx={ctx} payload={modal.payload} close={() => setModal(null)} />}
+          {modal?.kind === "req" && <ReqForm ctx={ctx} payload={modal.payload} close={() => setModal(null)} />}
+          {modal?.kind === "abs" && <AbsForm ctx={ctx} close={() => setModal(null)} />}
+          {modal?.kind === "import" && <ImportForm ctx={ctx} close={() => setModal(null)} />}
+          {modal?.kind === "aguinaldo" && <Aguinaldo ctx={ctx} close={() => setModal(null)} />}
+          {modal?.kind === "liquidacion" && <Liquidacion ctx={ctx} payload={modal.payload} close={() => setModal(null)} />}
+        </div>
+      </div>
+      <div className={"drawer" + (drawer ? " open" : "")}>
+        <div style={{ background: "rgb(var(--card))", borderLeft: "1px solid rgb(var(--border))", height: "100%", display: "flex", flexDirection: "column" }}>
+          {drawer?.kind === "exp" && <Expediente ctx={ctx} id={drawer.payload} close={() => setDrawer(null)} openEdit={(id) => { setDrawer(null); setModal({ kind: "emp", payload: id }); }} openReq={(id) => { setDrawer(null); setModal({ kind: "req", payload: id }); }} openLiq={(id) => { setDrawer(null); setModal({ kind: "liquidacion", payload: id }); }} />}
+          {drawer?.kind === "colilla" && <ColillaDrawer ctx={ctx} id={drawer.payload} close={() => setDrawer(null)} />}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Head({ title, close }) {
+  return <div style={{ padding: "18px 22px", borderBottom: "1px solid rgb(var(--border))", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h3>
+    <button onClick={close} style={{ background: "none", border: "none", color: "rgb(var(--muted-fg))", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button></div>;
+}
+function Foot({ children }) { return <div style={{ padding: "16px 22px", borderTop: "1px solid rgb(var(--border))", display: "flex", justifyContent: "flex-end", gap: 10 }}>{children}</div>; }
+const cancelBtn = { border: "1px solid rgb(var(--border))", background: "none", color: "rgb(var(--fg))", borderRadius: 10, padding: "10px 16px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer" };
+const saveBtn = { color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer" };
+
+function EmpForm({ ctx, payload, close }) {
+  const editing = ctx.employees.find((e) => e.id === payload);
+  const [f, setF] = useState(editing || { nombre: "", cedula: "", puesto: "", sucursal: "", salario: "", ingreso: "", jornada: "Tiempo completo", contrato: "Indefinido", contratoFin: "", role: "empleado", username: "", password: "" });
+  const up = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  return (
+    <>
+      <Head title={editing ? "Editar empleado" : "Agregar empleado"} close={close} />
+      <div style={{ padding: "20px 22px", overflowY: "auto" }}>
+        <div className="field" style={{ marginBottom: 14 }}><label>Nombre completo *</label><input value={f.nombre} onChange={(e) => up("nombre", e.target.value)} placeholder="Ej: María Fernández Rojas" /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="field"><label>Cédula</label><input value={f.cedula} onChange={(e) => up("cedula", e.target.value)} placeholder="1-2345-6789" /></div>
+          <div className="field"><label>Puesto</label><input value={f.puesto} onChange={(e) => up("puesto", e.target.value)} placeholder="Cajera" /></div>
+          <div className="field"><label>Sucursal / área</label><input value={f.sucursal} onChange={(e) => up("sucursal", e.target.value)} placeholder="Sucursal Centro" /></div>
+          <div className="field"><label>Salario bruto mensual (₡)</label><input type="number" value={f.salario} onChange={(e) => up("salario", e.target.value)} placeholder="485000" /></div>
+          <div className="field"><label>Fecha de ingreso *</label><input type="date" value={f.ingreso} onChange={(e) => up("ingreso", e.target.value)} /></div>
+          <div className="field"><label>Jornada</label><select value={f.jornada} onChange={(e) => up("jornada", e.target.value)}>{["Tiempo completo", "Medio tiempo", "Por horas"].map((o) => <option key={o}>{o}</option>)}</select></div>
+          <div className="field"><label>Tipo de contrato</label><select value={f.contrato} onChange={(e) => up("contrato", e.target.value)}>{["Indefinido", "Plazo fijo"].map((o) => <option key={o}>{o}</option>)}</select></div>
+          {f.contrato === "Plazo fijo" && <div className="field"><label>Fin de contrato</label><input type="date" value={f.contratoFin} onChange={(e) => up("contratoFin", e.target.value)} /></div>}
+        </div>
+        <div style={{ borderTop: "1px solid rgb(var(--border))", margin: "16px 0 14px", paddingTop: 14, fontWeight: 700, fontSize: 14 }}>Acceso al portal del empleado</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="field"><label>Usuario</label><input value={f.username || ""} onChange={(e) => up("username", e.target.value)} placeholder="maria" /></div>
+          <div className="field"><label>{editing ? "Nueva contraseña" : "Contraseña"}</label><input type="text" value={f.password || ""} onChange={(e) => up("password", e.target.value)} placeholder={editing ? "(dejar vacío = sin cambio)" : "temporal"} /></div>
+          <div className="field"><label>Rol</label><select value={f.role} onChange={(e) => up("role", e.target.value)}><option value="empleado">Empleado</option><option value="supervisor">Supervisor (aprueba su sucursal)</option><option value="rrhh">RRHH (aprueba toda la empresa)</option></select></div>
+        </div>
+        <p style={{ fontSize: 11.5, color: "rgb(var(--muted-fg))", marginTop: 8 }}>El empleado entra en /portal/login con el código de empresa + usuario + contraseña.</p>
+      </div>
+      <Foot>
+        <button onClick={close} style={cancelBtn}>Cancelar</button>
+        <button onClick={() => ctx.saveEmp(f, editing?.id)} className="brand-grad" style={saveBtn}>Guardar</button>
+      </Foot>
+    </>
+  );
+}
+
+function ReqForm({ ctx, payload, close }) {
+  const { employees } = ctx;
+  const [f, setF] = useState({ empId: payload || employees[0]?.id || "", tipo: "Vacaciones", desde: todayISO(), hasta: todayISO(), dias: 1, nota: "" });
+  const up = (k, v) => setF((s) => { const n = { ...s, [k]: v }; if (k === "desde" || k === "hasta") { const d = inclusiveDays(n.desde, n.hasta); if (d > 0) n.dias = d; } return n; });
+  const emp = employees.find((e) => e.id === f.empId);
+  return (
+    <>
+      <Head title="Nueva solicitud" close={close} />
+      <div style={{ padding: "20px 22px" }}>
+        <div className="field" style={{ marginBottom: 14 }}><label>Empleado *</label><select value={f.empId} onChange={(e) => up("empId", e.target.value)}>{employees.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>
+        <div className="field" style={{ marginBottom: 14 }}><label>Tipo *</label><select value={f.tipo} onChange={(e) => up("tipo", e.target.value)}>{["Vacaciones", "Permiso", "Incapacidad"].map((o) => <option key={o}>{o}</option>)}</select></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="field"><label>Desde *</label><input type="date" value={f.desde} onChange={(e) => up("desde", e.target.value)} /></div>
+          <div className="field"><label>Hasta *</label><input type="date" value={f.hasta} onChange={(e) => up("hasta", e.target.value)} /></div>
+        </div>
+        <div className="field" style={{ marginBottom: 6 }}><label>Días</label><input type="number" step="0.5" value={f.dias} onChange={(e) => up("dias", e.target.value)} /></div>
+        {f.tipo === "Vacaciones" && emp && <div style={{ fontSize: 12.5, color: "rgb(var(--muted-fg))", marginBottom: 14 }}>Saldo de vacaciones de {emp.nombre}: <b className="mono">{vacBalance(emp, ctx.requests).toFixed(1)} días</b></div>}
+        <div className="field"><label>Nota (opcional)</label><input value={f.nota} onChange={(e) => up("nota", e.target.value)} placeholder="Motivo o detalle" /></div>
+      </div>
+      <Foot><button onClick={close} style={cancelBtn}>Cancelar</button><button onClick={() => ctx.saveReq(f)} className="brand-grad" style={saveBtn}>Registrar</button></Foot>
+    </>
+  );
+}
+
+function AbsForm({ ctx, close }) {
+  const { employees } = ctx;
+  const [f, setF] = useState({ empId: employees[0]?.id || "", tipo: "Falta", fecha: todayISO(), dias: 1, detalle: "" });
+  const up = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  return (
+    <>
+      <Head title="Registrar ausencia" close={close} />
+      <div style={{ padding: "20px 22px" }}>
+        <div className="field" style={{ marginBottom: 14 }}><label>Empleado *</label><select value={f.empId} onChange={(e) => up("empId", e.target.value)}>{employees.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="field"><label>Tipo *</label><select value={f.tipo} onChange={(e) => up("tipo", e.target.value)}>{["Falta", "Tardía", "Incapacidad"].map((o) => <option key={o}>{o}</option>)}</select></div>
+          <div className="field"><label>Fecha *</label><input type="date" value={f.fecha} onChange={(e) => up("fecha", e.target.value)} /></div>
+          <div className="field"><label>Días</label><input type="number" step="0.5" value={f.dias} onChange={(e) => up("dias", e.target.value)} /></div>
+        </div>
+        <div className="field"><label>Detalle (opcional)</label><input value={f.detalle} onChange={(e) => up("detalle", e.target.value)} placeholder="Ej: incapacidad CCSS, llegó 30 min tarde…" /></div>
+      </div>
+      <Foot><button onClick={close} style={cancelBtn}>Cancelar</button><button onClick={() => ctx.saveAbs(f)} className="brand-grad" style={saveBtn}>Registrar</button></Foot>
+    </>
+  );
+}
+
+function ImportForm({ ctx, close }) {
+  const [text, setText] = useState("");
+  function parse() {
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    const rows = lines.map((l) => {
+      const p = l.split(/[,;\t]/).map((x) => x.trim());
+      return { nombre: p[0], cedula: p[1] || "", puesto: p[2] || "", sucursal: p[3] || "", salario: p[4] || 0, ingreso: p[5] || "" };
+    }).filter((r) => r.nombre && r.ingreso);
+    if (!rows.length) return ctx.notify("No se detectaron filas válidas (revisá el formato)");
+    ctx.importEmployees(rows);
+  }
+  return (
+    <>
+      <Head title="Importar empleados" close={close} />
+      <div style={{ padding: "20px 22px" }}>
+        <p style={{ fontSize: 13, color: "rgb(var(--muted-fg))", margin: "0 0 12px" }}>Pegá una fila por empleado, separada por comas. Orden de columnas:</p>
+        <div className="mono" style={{ fontSize: 12, background: "rgb(var(--muted))", border: "1px solid rgb(var(--border))", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>nombre, cédula, puesto, sucursal, salario, ingreso(AAAA-MM-DD)</div>
+        <div className="field"><textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder={"María Fernández, 1-2345-6789, Cajera, Centro, 485000, 2024-03-01\nLuis Mora, 2-3456-7890, Bodeguero, Centro, 520000, 2023-11-15"} /></div>
+      </div>
+      <Foot><button onClick={close} style={cancelBtn}>Cancelar</button><button onClick={parse} className="brand-grad" style={saveBtn}>Importar</button></Foot>
+    </>
+  );
+}
+
+function Aguinaldo({ ctx, close }) {
+  const { employees } = ctx;
+  const Y = new Date(todayISO() + "T00:00:00").getFullYear();
+  const tot = employees.reduce((s, e) => s + aguinaldoDe(e), 0);
+  return (
+    <>
+      <Head title="Aguinaldo proyectado" close={close} />
+      <div style={{ padding: "18px 22px", overflowY: "auto" }}>
+        <p style={{ fontSize: 13, color: "rgb(var(--muted-fg))", margin: "0 0 14px" }}>Proyección del ciclo dic {Y - 1} – nov {Y}, a pagar antes del 20 de diciembre. Es el promedio del salario ordinario del ciclo, proporcional al tiempo trabajado.</p>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+          <thead><tr style={{ color: "rgb(var(--muted-fg))", fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", textAlign: "left" }}><th style={{ padding: "8px 12px", fontWeight: 600 }}>Empleado</th><th style={{ padding: "8px 12px", fontWeight: 600, textAlign: "right" }}>Salario</th><th style={{ padding: "8px 12px", fontWeight: 600, textAlign: "right" }}>Aguinaldo</th></tr></thead>
+          <tbody>{employees.map((e) => <tr key={e.id} style={{ borderTop: "1px solid rgb(var(--border))" }}><td style={{ padding: "10px 12px" }}>{e.nombre}</td><td style={{ padding: "10px 12px", textAlign: "right" }} className="mono">{e.salario ? fmtMoney(e.salario) : "—"}</td><td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }} className="mono">{fmtMoney(aguinaldoDe(e))}</td></tr>)}</tbody>
+          <tfoot><tr style={{ borderTop: "2px solid rgb(var(--primary))", fontWeight: 800 }}><td style={{ padding: "11px 12px" }}>Total</td><td></td><td style={{ padding: "11px 12px", textAlign: "right" }} className="mono text-grad">{fmtMoney(tot)}</td></tr></tfoot>
+        </table>
+      </div>
+      <Foot><button onClick={close} style={cancelBtn}>Cerrar</button></Foot>
+    </>
+  );
+}
+
+function Liquidacion({ ctx, payload, close }) {
+  const e = ctx.employees.find((x) => x.id === payload);
+  const [fecha, setFecha] = useState(todayISO());
+  const [causa, setCausa] = useState("Despido con responsabilidad patronal");
+  if (!e) return null;
+  const L = liquidacion(e, fecha, causa, ctx.requests);
+  const row = (l, v, sub) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid rgb(var(--border))" }}>
+      <span style={{ fontSize: 13.5 }}>{l}{sub && <><br /><span style={{ fontSize: 11.5, color: "rgb(var(--muted-fg))" }}>{sub}</span></>}</span>
+      <span className="mono" style={{ fontWeight: 600, textAlign: "right" }}>{fmtMoney(v)}</span>
+    </div>
+  );
+  return (
+    <>
+      <Head title="Calcular liquidación" close={close} />
+      <div style={{ padding: "20px 22px", overflowY: "auto" }}>
+        <div style={{ fontSize: 13, color: "rgb(var(--muted-fg))", marginBottom: 14 }}>{e.nombre} · ingreso {fmtDate(e.ingreso)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="field"><label>Fecha de salida</label><input type="date" value={fecha} onChange={(ev) => setFecha(ev.target.value)} /></div>
+          <div className="field"><label>Causa</label><select value={causa} onChange={(ev) => setCausa(ev.target.value)}><option>Despido con responsabilidad patronal</option><option>Renuncia</option></select></div>
+        </div>
+        <div style={{ background: "rgb(var(--muted))", border: "1px solid rgb(var(--border))", borderRadius: 12, padding: "6px 16px", marginTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 12.5, color: "rgb(var(--muted-fg))" }}><span>Antigüedad</span><span>{L.years.toFixed(2)} años · diario {fmtMoney(L.diario)}</span></div>
+          {row("Vacaciones pendientes", L.vacMonto, `${L.balVac.toFixed(1)} días`)}
+          {row("Aguinaldo proporcional", L.aguMonto, `${L.mesesA.toFixed(1)} meses del ciclo`)}
+          {row("Preaviso", L.preMonto, `${L.preDias} días`)}
+          {row("Auxilio de cesantía", L.cesMonto, L.despido ? `${L.cesDias.toFixed(1)} días` : "no aplica en renuncia")}
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "13px 0", borderTop: "2px solid rgb(var(--primary))" }}><span style={{ fontWeight: 800 }}>Total estimado</span><span className="mono text-grad" style={{ fontWeight: 800, fontSize: 17 }}>{fmtMoney(L.total)}</span></div>
+        </div>
+        <p style={{ fontSize: 11.5, color: "rgb(var(--muted-fg))", marginTop: 14 }}>Estimación según el Código de Trabajo de Costa Rica (cesantía con tope de 8 años). Validá el cálculo con tu asesor laboral antes de pagar.</p>
+      </div>
+      <Foot><button onClick={close} style={cancelBtn}>Cerrar</button></Foot>
+    </>
+  );
+}
+
+function Expediente({ ctx, id, close, openEdit, openReq, openLiq }) {
+  const { employees, requests } = ctx;
+  const e = employees.find((x) => x.id === id);
+  if (!e) return null;
+  const acc = vacAccrued(e), tak = vacTaken(e, requests), bal = acc - tak;
+  const antig = e.ingreso ? daysBetween(e.ingreso, todayISO()) / 365 : 0;
+  const reqs = requests.filter((r) => r.empId === id);
+  const abs = (ctx.absences || []).filter((a) => a.empId === id);
+  const dataRow = (k, v) => <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderBottom: "1px solid rgb(var(--border))" }}><span style={{ fontSize: 13, color: "rgb(var(--muted-fg))" }}>{k}</span><span style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>{v}</span></div>;
+  return (
+    <>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid rgb(var(--border))", display: "flex", alignItems: "flex-start", gap: 14 }}>
+        <span style={{ width: 48, height: 48, borderRadius: "50%", flex: "none", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 17, background: "rgba(13,148,136,.14)", color: "rgb(var(--primary))" }}>{initials(e.nombre)}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>{e.nombre}</h3>
+          <div style={{ fontSize: 13, color: "rgb(var(--muted-fg))" }}>{e.puesto || "—"}{e.sucursal ? " · " + e.sucursal : ""}{e.role !== "empleado" ? " · " + ({ supervisor: "Supervisor", rrhh: "RRHH" }[e.role]) : ""}</div>
+        </div>
+        <button onClick={close} style={{ background: "none", border: "none", color: "rgb(var(--muted-fg))", fontSize: 20, cursor: "pointer" }}>×</button>
+      </div>
+      <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
+          {[["Vacaciones disp.", bal], ["Acumuladas", acc], ["Tomadas", tak]].map(([k, v]) => <div key={k} style={{ background: "rgb(var(--muted))", border: "1px solid rgb(var(--border))", borderRadius: 12, padding: 12 }}><div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".05em", color: "rgb(var(--muted-fg))" }}>{k}</div><div style={{ fontSize: 20, fontWeight: 800 }} className="mono">{v.toFixed(1)}</div></div>)}
+        </div>
+        <div style={{ background: "rgb(var(--card))", border: "1px solid rgb(var(--border))", borderRadius: 13, padding: "4px 16px", marginBottom: 18 }}>
+          {dataRow("Cédula", e.cedula || "—")}
+          {dataRow("Salario bruto", e.salario ? fmtMoney(e.salario) : "—")}
+          {dataRow("Ingreso", fmtDate(e.ingreso) + ` · ${antig.toFixed(1)} año(s)`)}
+          {dataRow("Jornada", e.jornada || "—")}
+          {dataRow("Contrato", (e.contrato || "—") + (e.contratoFin ? " · hasta " + fmtDate(e.contratoFin) : ""))}
+          {dataRow("Acceso portal", e.username ? "@" + e.username + (e.hasPassword ? "" : " (sin contraseña)") : "sin usuario")}
+        </div>
+        <div style={{ display: "flex", gap: 9, marginBottom: 12 }}>
+          <button onClick={() => openReq(e.id)} style={{ flex: 1, ...cancelBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Ico name="umbrella" size={15} /> Solicitud</button>
+          <button onClick={() => openEdit(e.id)} style={{ flex: 1, ...cancelBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Ico name="pencil" size={15} /> Editar</button>
+          <button onClick={() => ctx.delEmp(e.id)} style={{ border: "1px solid rgba(248,113,113,.4)", background: "rgba(248,113,113,.08)", color: "rgb(var(--destructive))", borderRadius: 10, padding: "9px 12px", cursor: "pointer" }}><Ico name="trash-2" size={15} /></button>
+        </div>
+        <button onClick={() => openLiq(e.id)} style={{ width: "100%", ...cancelBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 13, marginBottom: 20 }}><Ico name="calculator" size={15} /> Calcular liquidación</button>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "rgb(var(--muted-fg))", marginBottom: 8 }}>Historial</div>
+        {!(reqs.length || abs.length) && <div style={{ fontSize: 13, color: "rgb(var(--muted-fg))" }}>Sin movimientos todavía.</div>}
+        {reqs.map((r) => <div key={r.id} style={{ fontSize: 13, padding: "8px 0", borderBottom: "1px solid rgb(var(--border))" }}>📋 {r.tipo} · {fmtDate(r.desde)} → {fmtDate(r.hasta)} · <b>{r.estado}</b></div>)}
+        {abs.map((a) => <div key={a.id} style={{ fontSize: 13, padding: "8px 0", borderBottom: "1px solid rgb(var(--border))" }}>📅 {a.tipo} · {fmtDate(a.fecha)} · {a.dias || 1} día(s)</div>)}
+      </div>
+    </>
+  );
+}
+
+function AjustesView({ company, onSave, snapshot, notify }) {
+  const [nombre, setNombre] = useState(company.nombre || "");
+  const [obrero, setObrero] = useState(company.ccssObrero);
+  const [patrono, setPatrono] = useState(company.ccssPatrono);
+  const card = { maxWidth: 540, background: "rgb(var(--card))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, marginBottom: 18 };
+  const mfg = "rgb(var(--muted-fg))";
+  return (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.02em", margin: 0 }}>Ajustes</h1>
+        <p style={{ color: mfg, fontSize: 14, margin: "6px 0 0" }}>Configuración de tu empresa</p>
+      </div>
+      <div style={card}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Código de empresa</div>
+        <p style={{ fontSize: 12.5, color: mfg, margin: "0 0 10px" }}>Compartí este código con tus empleados para que entren a su portal en <b>/portal/login</b>.</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="mono" style={{ fontSize: 24, fontWeight: 800, letterSpacing: ".15em", color: "rgb(var(--primary))", background: "rgb(var(--muted))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "8px 18px" }}>{company.codigo}</span>
+          <button onClick={() => { navigator.clipboard?.writeText(company.codigo); notify("Código copiado"); }} className="btn-ghost"><Ico name="copy" size={15} /> Copiar</button>
+        </div>
+      </div>
+      <div style={card}>
+        <div className="field" style={{ marginBottom: 16 }}><label>Nombre de la empresa</label><input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Mi empresa S.A." /></div>
+        <div style={{ fontWeight: 700, fontSize: 14, margin: "6px 0 4px" }}>Cargas sociales CCSS</div>
+        <p style={{ fontSize: 12.5, color: mfg, margin: "0 0 12px" }}>Referencia 2025: obrero 10,67% / patrono 26,67%. En 2026 suben a 10,83% / 26,83%.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div className="field" style={{ margin: 0 }}><label>Obrero (%)</label><input type="number" step="0.01" value={obrero} onChange={(e) => setObrero(e.target.value)} /></div>
+          <div className="field" style={{ margin: 0 }}><label>Patrono (%)</label><input type="number" step="0.01" value={patrono} onChange={(e) => setPatrono(e.target.value)} /></div>
+        </div>
+        <button onClick={() => onSave({ nombre: nombre.trim(), ccssObrero: parseFloat(obrero), ccssPatrono: parseFloat(patrono) })} className="btn-grad brand-grad">Guardar</button>
+      </div>
+      <div style={{ ...card, marginBottom: 0 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Respaldo</div>
+        <p style={{ fontSize: 13, color: mfg, margin: "0 0 14px" }}>Descargá todos los datos de tu empresa en un archivo JSON.</p>
+        <button onClick={() => { const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "centralia-personas-" + todayISO() + ".json"; a.click(); notify("Datos exportados"); }} className="btn-ghost"><Ico name="download" size={15} /> Exportar JSON</button>
+      </div>
+    </>
+  );
+}
+
+function ColillaDrawer({ ctx, id, close }) {
+  const e = ctx.employees.find((x) => x.id === id);
+  if (!e) return null;
+  const html = ctx.colillaHTML(e);
+  return (
+    <>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid rgb(var(--border))", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Colilla de pago</h3>
+        <button onClick={close} style={{ background: "none", border: "none", color: "rgb(var(--muted-fg))", fontSize: 20, cursor: "pointer" }}>×</button>
+      </div>
+      <div style={{ padding: 22, overflowY: "auto", flex: 1, background: "rgb(var(--muted))" }}>
+        <div style={{ background: "#fff", borderRadius: 12, padding: 22 }} dangerouslySetInnerHTML={{ __html: html }} />
+      </div>
+            <Foot><button onClick={() => ctx.printWindow(html, "Colilla " + e.nombre)} className="brand-grad" style={{ ...saveBtn, display: "inline-flex", alignItems: "center", gap: 7 }}><Ico name="printer" size={16} /> Imprimir / PDF</button></Foot>
+    </>
+  );
+}

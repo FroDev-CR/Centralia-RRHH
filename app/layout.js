@@ -1,0 +1,29 @@
+import "./globals.css";
+import Script from "next/script";
+import { ClerkProvider } from "@clerk/nextjs";
+
+export const metadata = {
+  title: "Centralia Personas — RRHH y Nómina para Costa Rica",
+  description: "Gestión de personal, vacaciones y nómina (CCSS) multi-empresa. Parte de la suite Centralia.",
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <ClerkProvider afterSignOutUrl="/">
+      <html lang="es" data-theme="dark">
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+          <link
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+            rel="stylesheet"
+          />
+        </head>
+        <body>
+          {children}
+          <Script src="https://unpkg.com/lucide@latest" strategy="afterInteractive" />
+        </body>
+      </html>
+    </ClerkProvider>
+  );
+}

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.vercel/
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local
+
+# archivo de prueba temporal (no se pudo borrar desde el sandbox)
+_ct.mjs

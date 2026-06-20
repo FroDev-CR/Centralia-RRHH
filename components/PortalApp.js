@@ -1,0 +1,264 @@
+"use client";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  todayISO, fmtMoney, fmtDate, inclusiveDays, daysBetween,
+  vacAccrued, vacTaken, vacBalance, calcRow, periodLabel,
+} from "@/lib/calc";
+
+function Ico({ name, size = 16, style }) { return <i data-lucide={name} style={{ width: size, height: size, ...style }} />; }
+
+function parseKey(k) {
+  const [mes, rest = "Mensual"] = k.split("|");
+  const quincenal = rest.startsWith("Quincenal");
+  const quincena = quincenal ? Number(rest.split("-Q")[1] || 1) : 1;
+  return { mes, tipo: quincenal ? "Quincenal" : "Mensual", quincena };
+}
+
+export default function PortalApp() {
+  const router = useRouter();
+  const [d, setD] = useState(null);
+  const [tab, setTab] = useState("resumen");
+  const [toast, setToast] = useState("");
+  const [showReq, setShowReq] = useState(false);
+  const [colilla, setColilla] = useState(null);
+
+  const load = useCallback(async () => {
+    const r = await fetch("/api/employee/me", { cache: "no-store" });
+    if (r.status === 401) { router.push("/portal/login"); return; }
+    setD(await r.json());
+  }, [router]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+  useEffect(() => {
+    const t = localStorage.getItem("cc_theme") || "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  }, []);
+  function notify(m) { setToast(m); clearTimeout(window.__pt); window.__pt = setTimeout(() => setToast(""), 2200); }
+
+  async function logout() {
+    await fetch("/api/employee/logout", { method: "POST" });
+    router.push("/portal/login"); router.refresh();
+  }
+  async function api(url, method, body) {
+    const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { notify(j.error || "Error"); throw new Error(j.error); }
+    return j;
+  }
+
+  const C = { card: "rgb(var(--card))", border: "rgb(var(--border))", muted: "rgb(var(--muted))", mfg: "rgb(var(--muted-fg))", primary: "rgb(var(--primary))", fg: "rgb(var(--fg))" };
+
+  if (!d || d.error) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", color: C.mfg, background: "rgb(var(--bg))" }}>Cargando…</div>;
+
+  const { employee: me, company, requests, colillas, team } = d;
+  const acc = vacAccrued(me), tak = vacTaken(me, requests), bal = acc - tak;
+
+  const TABS = [["resumen", "Resumen", "layout-dashboard"], ["solicitudes", "Mis solicitudes", "clipboard-list"], ["colillas", "Mis colillas", "receipt"]];
+  if (team) TABS.push(["equipo", "Equipo", "users"]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "rgb(var(--bg))", color: C.fg }}>
+      <header style={{ borderBottom: `1px solid ${C.border}`, background: C.card }}>
+        <div style={{ maxWidth: 920, margin: "0 auto", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <span className="logo-sq brand-grad" style={{ fontSize: 16 }}>👥</span>
+            <div style={{ lineHeight: 1.1 }}><div style={{ fontWeight: 800, fontSize: 14 }}>{company.nombre || "Mi empresa"}</div><div style={{ fontSize: 12, color: C.mfg }}>Portal del empleado</div></div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13.5, color: C.mfg }}>{me.nombre}</span>
+            <button onClick={logout} className="btn-ghost" style={{ padding: "8px 12px" }}><Ico name="log-out" size={15} /> Salir</button>
+          </div>
+        </div>
+      </header>
+
+      <div style={{ maxWidth: 920, margin: "0 auto", padding: "8px 20px 0", display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+        {TABS.map(([id, lbl, ic]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.primary : "transparent"}`, color: tab === id ? C.fg : C.mfg, fontFamily: "inherit", fontSize: 13.5, fontWeight: 600, padding: "12px 12px", cursor: "pointer" }}>
+            <Ico name={ic} size={15} /> {lbl}
+            {id === "equipo" && team && (() => { const p = team.requests.filter((r) => r.estado === "Pendiente" && r.empId !== me.id).length; return p ? <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(13,148,136,.16)", color: C.primary, borderRadius: 999, padding: "1px 7px" }}>{p}</span> : null; })()}
+          </button>
+        ))}
+      </div>
+
+      <main style={{ maxWidth: 920, margin: "0 auto", padding: "26px 20px 80px" }}>
+        {tab === "resumen" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 13, marginBottom: 22 }}>
+              {[["Disponibles", bal, "primary"], ["Acumuladas", acc, "accent"], ["Tomadas", tak, "warning"]].map(([k, v, t]) => {
+                const c = t === "primary" ? "13,148,136" : t === "accent" ? "79,70,229" : "251,191,36";
+                return <div key={k} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: C.mfg }}>Vacaciones {k}</span><span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: `rgba(${c},.12)`, color: `rgb(${c})` }}><Ico name="umbrella" size={15} /></span></div>
+                  <div style={{ fontSize: 26, fontWeight: 800, marginTop: 10 }} className="mono">{v.toFixed(1)}</div><div style={{ fontSize: 12.5, color: C.mfg }}>días</div>
+                </div>;
+              })}
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "4px 18px" }}>
+              {[["Puesto", me.puesto || "—"], ["Sucursal", me.sucursal || "—"], ["Cédula", me.cedula || "—"], ["Salario bruto", me.salario ? fmtMoney(me.salario) : "—"], ["Ingreso", fmtDate(me.ingreso)], ["Jornada", me.jornada || "—"], ["Contrato", me.contrato || "—"]].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}><span style={{ fontSize: 13, color: C.mfg }}>{k}</span><span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span></div>
+              ))}
+            </div>
+            <div style={{ marginTop: 18 }}><button onClick={() => setShowReq(true)} className="brand-grad" style={{ color: "#fff", border: "none", borderRadius: 11, padding: "12px 18px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer", display: "inline-flex", gap: 7, alignItems: "center" }}><Ico name="plus" /> Solicitar vacaciones o permiso</button></div>
+          </>
+        )}
+
+        {tab === "solicitudes" && (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Mis solicitudes</h2>
+              <button onClick={() => setShowReq(true)} className="brand-grad" style={{ color: "#fff", border: "none", borderRadius: 10, padding: "9px 15px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer", display: "inline-flex", gap: 6, alignItems: "center" }}><Ico name="plus" size={15} /> Nueva</button>
+            </div>
+            {requests.length === 0 ? <Empty C={C} ico="clipboard-list" t="Sin solicitudes" s="Cuando pidás vacaciones o un permiso, aparecerán acá con su estado." />
+              : [...requests].sort((a, b) => (b.creado || "").localeCompare(a.creado || "")).map((r) => <ReqRow key={r.id} r={r} C={C} />)}
+          </>
+        )}
+
+        {tab === "colillas" && (
+          <>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Mis colillas</h2>
+            {(!colillas || colillas.length === 0) ? <Empty C={C} ico="receipt" t="Aún no hay colillas" s="Cuando tu empresa procese una planilla, vas a poder ver e imprimir tu colilla acá." />
+              : colillas.sort((a, b) => b.periodKey.localeCompare(a.periodKey)).map((col) => {
+                const p = parseKey(col.periodKey);
+                const c = calcRow(me, col.adj, company, p);
+                return (
+                  <div key={col.periodKey} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", alignItems: "center", gap: 13, marginBottom: 10 }}>
+                    <span style={{ width: 36, height: 36, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: "rgba(13,148,136,.12)", color: C.primary }}><Ico name="receipt" size={17} /></span>
+                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{periodLabel(p)}</div><div style={{ fontSize: 12.5, color: C.mfg }}>Neto <b className="mono">{fmtMoney(c.neto)}</b></div></div>
+                    <button onClick={() => setColilla({ p, c })} className="btn-ghost" style={{ padding: "8px 12px" }}><Ico name="eye" size={15} /> Ver</button>
+                  </div>
+                );
+              })}
+          </>
+        )}
+
+        {tab === "equipo" && team && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Solicitudes del equipo</h2>
+              <p style={{ fontSize: 13, color: C.mfg, margin: "5px 0 0" }}>Alcance: {team.scope}. Aprobá o rechazá las solicitudes de tu equipo.</p>
+            </div>
+            {(() => {
+              const pend = team.requests.filter((r) => r.estado === "Pendiente" && r.empId !== me.id);
+              const otros = team.requests.filter((r) => r.estado !== "Pendiente" || r.empId === me.id);
+              const nameOf = (id) => team.employees.find((e) => e.id === id)?.nombre || "—";
+              if (team.requests.length === 0) return <Empty C={C} ico="users" t="Sin solicitudes" s="No hay solicitudes registradas en tu equipo." />;
+              return (
+                <>
+                  {pend.map((r) => (
+                    <div key={r.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", alignItems: "center", gap: 13, marginBottom: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{nameOf(r.empId)} · <span style={{ color: C.mfg }}>{r.tipo}</span></div><div style={{ fontSize: 12.5, color: C.mfg }}>{fmtDate(r.desde)} → {fmtDate(r.hasta)} · {r.dias} día(s){r.nota ? ` · ${r.nota}` : ""}</div></div>
+                      <div style={{ display: "flex", gap: 7 }}>
+                        <button onClick={async () => { await api(`/api/employee/requests/${r.id}`, "PATCH", { estado: "Aprobada" }); load(); notify("Aprobada"); }} style={{ fontSize: 12, fontFamily: "inherit", border: "1px solid rgba(52,211,153,.4)", color: "rgb(var(--success))", background: "rgba(52,211,153,.1)", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Aprobar</button>
+                        <button onClick={async () => { await api(`/api/employee/requests/${r.id}`, "PATCH", { estado: "Rechazada" }); load(); notify("Rechazada"); }} style={{ fontSize: 12, fontFamily: "inherit", border: `1px solid ${C.border}`, color: C.mfg, background: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Rechazar</button>
+                      </div>
+                    </div>
+                  ))}
+                  {pend.length === 0 && <Empty C={C} ico="check" t="Nada pendiente" s="No hay solicitudes esperando tu aprobación." />}
+                  {otros.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: C.mfg, margin: "18px 0 10px" }}>Historial</div>}
+                  {otros.sort((a, b) => (b.creado || "").localeCompare(a.creado || "")).map((r) => (
+                    <div key={r.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5 }}>{nameOf(r.empId)} · {r.tipo} · {fmtDate(r.desde)} → {fmtDate(r.hasta)}</div></div>
+                      <StateChip estado={r.estado} />
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </>
+        )}
+      </main>
+
+      {showReq && <NewReqModal C={C} me={me} requests={requests} onClose={() => setShowReq(false)} onSaved={() => { setShowReq(false); load(); notify("Solicitud enviada"); }} api={api} />}
+      {colilla && <ColillaModal C={C} me={me} company={company} data={colilla} onClose={() => setColilla(null)} />}
+      {toast && <div className="toast show">{toast}</div>}
+    </div>
+  );
+}
+
+function Empty({ C, ico, t, s }) {
+  return <div style={{ textAlign: "center", padding: "60px 24px", border: `1.5px dashed ${C.border}`, borderRadius: 16, background: C.card }}>
+    <div className="logo-sq brand-grad" style={{ width: 48, height: 48, borderRadius: 14, margin: "0 auto 14px" }}><Ico name={ico} size={22} /></div>
+    <div style={{ fontSize: 16, fontWeight: 700 }}>{t}</div><p style={{ color: C.mfg, fontSize: 13.5, maxWidth: 380, margin: "8px auto 0" }}>{s}</p>
+  </div>;
+}
+function StateChip({ estado }) {
+  const c = { Pendiente: "251,191,36", Aprobada: "52,211,153", Rechazada: "248,113,113" }[estado];
+  return <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: `rgb(${c})`, background: `rgba(${c},.14)`, borderRadius: 6, padding: "3px 9px" }}>{estado}</span>;
+}
+function ReqRow({ r, C }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", alignItems: "center", gap: 13, marginBottom: 10 }}>
+      <span style={{ width: 36, height: 36, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: "rgba(79,70,229,.12)", color: "rgb(var(--accent))" }}><Ico name={r.tipo === "Vacaciones" ? "umbrella" : r.tipo === "Incapacidad" ? "stethoscope" : "calendar"} size={17} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{r.tipo}</div><div style={{ fontSize: 12.5, color: C.mfg }}>{fmtDate(r.desde)} → {fmtDate(r.hasta)} · {r.dias} día(s){r.nota ? ` · ${r.nota}` : ""}</div></div>
+      <StateChip estado={r.estado} />
+    </div>
+  );
+}
+
+function NewReqModal({ C, me, requests, onClose, onSaved, api }) {
+  const [f, setF] = useState({ tipo: "Vacaciones", desde: todayISO(), hasta: todayISO(), dias: 1, nota: "" });
+  const up = (k, v) => setF((s) => { const n = { ...s, [k]: v }; if (k === "desde" || k === "hasta") { const dd = inclusiveDays(n.desde, n.hasta); if (dd > 0) n.dias = dd; } return n; });
+  const bal = vacBalance(me, requests);
+  async function save() {
+    if (!f.desde || !f.hasta) return;
+    if (daysBetween(f.desde, f.hasta) < 0) return;
+    await api("/api/employee/requests", "POST", f); onSaved();
+  }
+  return (
+    <>
+      <div className="scrim open" onClick={onClose} />
+      <div className="modal open"><div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden" }}>
+        <div style={{ padding: "18px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Nueva solicitud</h3><button onClick={onClose} style={{ background: "none", border: "none", color: C.mfg, fontSize: 20, cursor: "pointer" }}>×</button></div>
+        <div style={{ padding: "20px 22px" }}>
+          <div className="field" style={{ marginBottom: 14 }}><label>Tipo *</label><select value={f.tipo} onChange={(e) => up("tipo", e.target.value)}>{["Vacaciones", "Permiso"].map((o) => <option key={o}>{o}</option>)}</select></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="field"><label>Desde *</label><input type="date" value={f.desde} onChange={(e) => up("desde", e.target.value)} /></div>
+            <div className="field"><label>Hasta *</label><input type="date" value={f.hasta} onChange={(e) => up("hasta", e.target.value)} /></div>
+          </div>
+          <div className="field" style={{ marginBottom: 6 }}><label>Días</label><input type="number" step="0.5" value={f.dias} onChange={(e) => up("dias", e.target.value)} /></div>
+          {f.tipo === "Vacaciones" && <div style={{ fontSize: 12.5, color: C.mfg, marginBottom: 14 }}>Tu saldo de vacaciones: <b className="mono">{bal.toFixed(1)} días</b></div>}
+          <div className="field"><label>Nota (opcional)</label><input value={f.nota} onChange={(e) => up("nota", e.target.value)} placeholder="Motivo o detalle" /></div>
+        </div>
+        <div style={{ padding: "16px 22px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} style={{ border: `1px solid ${C.border}`, background: "none", color: C.fg, borderRadius: 10, padding: "10px 16px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
+          <button onClick={save} className="brand-grad" style={{ color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>Enviar</button>
+        </div>
+      </div></div>
+    </>
+  );
+}
+
+function ColillaModal({ C, me, company, data, onClose }) {
+  const { p, c } = data;
+  const html = colillaHTML(me, company, p, c);
+  function print() {
+    const w = window.open("", "_blank", "width=720,height=900"); if (!w) return;
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Colilla</title></head><body style="margin:0;padding:28px;background:#fff">' + html + "</body></html>");
+    w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 300);
+  }
+  return (
+    <>
+      <div className="scrim open" onClick={onClose} />
+      <div className="modal open"><div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden" }}>
+        <div style={{ padding: "18px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Colilla · {periodLabel(p)}</h3><button onClick={onClose} style={{ background: "none", border: "none", color: C.mfg, fontSize: 20, cursor: "pointer" }}>×</button></div>
+        <div style={{ padding: 22, background: C.muted, maxHeight: "70vh", overflowY: "auto" }}><div style={{ background: "#fff", borderRadius: 12, padding: 22 }} dangerouslySetInnerHTML={{ __html: html }} /></div>
+        <div style={{ padding: "16px 22px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}><button onClick={print} className="brand-grad" style={{ color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontFamily: "inherit", fontWeight: 600, cursor: "pointer", display: "inline-flex", gap: 7, alignItems: "center" }}><Ico name="printer" size={16} /> Imprimir / PDF</button></div>
+      </div></div>
+    </>
+  );
+}
+
+function colillaHTML(e, company, p, c) {
+  const line = (l, v, neg) => `<tr><td style="padding:7px 0;color:#444">${l}</td><td style="padding:7px 0;text-align:right;font-family:monospace">${neg ? "−" : ""}${fmtMoney(v)}</td></tr>`;
+  return `<div style="font-family:Poppins,Arial,sans-serif;max-width:460px;color:#111">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:14px">
+      <div><div style="font-weight:800;font-size:18px">${company.nombre || "Mi empresa"}</div><div style="font-size:12px;color:#666">Colilla de pago · ${periodLabel(p)}</div></div>
+      <div style="font-weight:800;color:#0d9488;text-align:right">Centralia<br>Personas</div></div>
+    <div style="font-size:13px;margin-bottom:10px"><b>${e.nombre}</b> · ${e.puesto || "—"}${e.cedula ? ` · Céd. ${e.cedula}` : ""}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      ${line("Salario base", c.base)}${c.extra ? line("Horas extra", c.extra) : ""}
+      <tr><td style="padding:7px 0;font-weight:700;border-top:1px solid #ddd">Salario bruto</td><td style="padding:7px 0;text-align:right;font-weight:700;border-top:1px solid #ddd;font-family:monospace">${fmtMoney(c.bruto)}</td></tr>
+      ${line(`CCSS obrero (${company.ccssObrero}%)`, c.obrero, true)}${c.otras ? line("Otras deducciones", c.otras, true) : ""}
+      <tr><td style="padding:9px 0;font-weight:800;border-top:2px solid #0d9488">Neto a pagar</td><td style="padding:9px 0;text-align:right;font-weight:800;border-top:2px solid #0d9488;font-family:monospace;color:#0d9488">${fmtMoney(c.neto)}</td></tr>
+    </table></div>`;
+}
