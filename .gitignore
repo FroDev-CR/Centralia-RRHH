@@ -9,3 +9,5 @@ node_modules/
 
 # archivo de prueba temporal (no se pudo borrar desde el sandbox)
 _ct.mjs
+.env.local.tmp
+*.tmp
