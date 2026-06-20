@@ -7,8 +7,7 @@ import {
   vacAccrued, vacTaken, vacBalance, calcRow, periodLabel,
 } from "@/lib/calc";
 
-function pascal(n) { return String(n).split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(""); }
-function Ico({ name, size = 16, style }) { const Cmp = LucideIcons[pascal(name)] || LucideIcons.Circle; return <Cmp size={size} style={style} />; }
+function Ico({ name, size = 16, style }) { return <i data-lucide={name} style={{ width: size, height: size, ...style }} />; }
 
 function parseKey(k) {
   const [mes, rest = "Mensual"] = k.split("|");
@@ -31,6 +30,7 @@ export default function PortalApp() {
     setD(await r.json());
   }, [router]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
   useEffect(() => {
     const t = localStorage.getItem("cc_theme") || "dark";
     document.documentElement.setAttribute("data-theme", t);

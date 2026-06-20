@@ -53,6 +53,7 @@ export default function DashboardApp({ company: initialCompany }) {
   useEffect(() => { reload().finally(() => setLoading(false)); }, [reload]);
 
   // ---- íconos + tema ----
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
   useEffect(() => {
     const t = localStorage.getItem("cc_theme") || "dark";
     setTheme(t); document.documentElement.setAttribute("data-theme", t);

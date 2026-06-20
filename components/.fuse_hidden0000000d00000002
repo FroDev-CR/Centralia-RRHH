@@ -20,10 +20,8 @@ const NAV = [
 ];
 const ROLE_LBL = { empleado: "Empleado", supervisor: "Supervisor", rrhh: "RRHH" };
 
-function pascal(n) { return String(n).split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(""); }
 function Ico({ name, size = 16, style }) {
-  const Cmp = LucideIcons[pascal(name)] || LucideIcons.Circle;
-  return <Cmp size={size} style={style} />;
+  return <i data-lucide={name} style={{ width: size, height: size, ...style }} />;
 }
 
 export default function DashboardApp({ company: initialCompany }) {
@@ -53,6 +51,7 @@ export default function DashboardApp({ company: initialCompany }) {
   useEffect(() => { reload().finally(() => setLoading(false)); }, [reload]);
 
   // ---- íconos + tema ----
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
   useEffect(() => {
     const t = localStorage.getItem("cc_theme") || "dark";
     setTheme(t); document.documentElement.setAttribute("data-theme", t);

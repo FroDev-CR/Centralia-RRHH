@@ -31,6 +31,7 @@ export default function PortalApp() {
     setD(await r.json());
   }, [router]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
   useEffect(() => {
     const t = localStorage.getItem("cc_theme") || "dark";
     document.documentElement.setAttribute("data-theme", t);
